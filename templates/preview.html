@@ -15,6 +15,18 @@
             <p class="text-muted">선택하신 일기들로 제작될 포토북을 최종 확인해주세요</p>
         </div>
 
+        <!-- 에러 메시지 표시 -->
+        {% if error_message %}
+        <div class="alert alert-danger mb-4" role="alert">
+            <h5 class="alert-heading">
+                <i class="bi bi-exclamation-triangle-fill"></i> 주문 처리 실패
+            </h5>
+            <p class="mb-0">{{ error_message }}</p>
+            <hr>
+            <small class="mb-0">다시 시도하거나 문제가 지속되면 고객센터로 문의해주세요.</small>
+        </div>
+        {% endif %}
+
         <!-- 선택 상태 요약 -->
         <div class="alert {% if status_info.type == 'recommended' %}alert-success{% elif status_info.type == 'warning' %}alert-warning{% elif status_info.type == 'error' %}alert-danger{% else %}alert-info{% endif %} mb-4">
             <div class="row align-items-center">
@@ -101,30 +113,27 @@
 
                 <!-- 선택된 일기 목록 -->
                 <div class="card shadow-sm">
-                    <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="card-header">
                         <h5 class="mb-0">
                             <i class="bi bi-journal-text"></i> 선택된 일기 목록 ({{ selected_count }}개)
                         </h5>
-                        {% if selected_count > 8 %}
-                        <button class="btn btn-outline-secondary btn-sm" id="toggleAllDiaries">
-                            <i class="bi bi-chevron-down"></i> 모든 일기 보기
-                        </button>
-                        {% endif %}
+                        <small class="text-muted">선택하신 모든 일기의 전체 내용을 확인하실 수 있습니다</small>
                     </div>
                     <div class="card-body">
-                        <div class="row">
+                        <div class="row" id="diaryListContainer">
                             {% for diary in selected_diaries %}
-                            <div class="col-md-6 mb-3 {% if loop.index > 8 %}diary-preview-hidden{% endif %}">
-                                <div class="card border h-100">
+                            <div class="col-lg-6 mb-4 diary-item" data-diary-index="{{ loop.index }}" data-diary-id="{{ diary.id }}">
+                                <div class="card border">
                                     <div class="card-body p-3">
-                                        <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <div class="badge bg-primary">{{ loop.index }}번째</div>
-                                            <small class="text-muted">{{ diary.date }}</small>
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <div class="badge bg-primary fs-6">{{ loop.index }}번째</div>
+                                            <small class="text-muted fw-bold">{{ diary.date }}</small>
                                         </div>
-                                        <h6 class="card-title">{{ diary.title }}</h6>
-                                        <p class="card-text small text-muted mb-2" style="line-height: 1.4;">
-                                            {{ diary.content[:150] }}{% if diary.content|length > 150 %}...{% endif %}
-                                        </p>
+                                        <h6 class="card-title mb-3 text-primary">{{ diary.title }}</h6>
+                                        <div class="diary-content-full">
+                                            <p class="card-text text-dark mb-3" style="line-height: 1.6; white-space: pre-wrap;">{{ diary.content }}</p>
+                                        </div>
+                                        <hr class="my-3">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <small class="text-muted">
                                                 <i class="bi bi-file-text"></i> {{ diary.content|length }}자
@@ -181,26 +190,29 @@
 
                         <!-- 가격 정보 -->
                         <div class="mb-4">
-                            <h6 class="mb-3">💰 예상 제작 비용</h6>
-                            <div class="price-breakdown">
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span class="small">기본 제작비 (24페이지)</span>
-                                    <span class="small">{{ "{:,}".format(cost_info.base_price) }}원</span>
-                                </div>
-                                {% if cost_info.additional_cost > 0 %}
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span class="small">추가 페이지 비용 ({{ validation.page_count - 24 }}페이지)</span>
-                                    <span class="small">{{ "{:,}".format(cost_info.additional_cost) }}원</span>
-                                </div>
+                            <div class="d-flex align-items-center mb-3">
+                                <h6 class="mb-0 me-2">💰 예상 제작 비용</h6>
+                                {% if cost_info.is_estimate %}
+                                <span class="badge bg-warning text-dark small">임시 추정</span>
                                 {% endif %}
+                            </div>
+                            
+                            {% if cost_info.is_estimate %}
+                            <div class="alert alert-warning py-2 mb-3">
+                                <small>
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                    {{ cost_info.estimate_note }}
+                                </small>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="price-breakdown">
+                                {% for item, price in cost_info.price_breakdown.items() %}
                                 <div class="d-flex justify-content-between mb-2">
-                                    <span class="small">배송비</span>
-                                    <span class="small">{{ "{:,}".format(cost_info.shipping_fee) }}원</span>
+                                    <span class="small">{{ item }}</span>
+                                    <span class="small">{{ price }}</span>
                                 </div>
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span class="small">부가세 (10%)</span>
-                                    <span class="small">{{ "{:,}".format(cost_info.vat_amount) }}원</span>
-                                </div>
+                                {% endfor %}
                                 <hr class="my-3">
                                 <div class="d-flex justify-content-between">
                                     <strong>총 예상 금액</strong>
@@ -337,8 +349,71 @@
     top: 1rem;
 }
 
-.diary-preview-hidden {
-    display: none;
+/* 일기 카드 스타일 */
+.diary-item {
+    transition: all 0.3s ease;
+}
+
+.diary-item .card {
+    transition: all 0.3s ease;
+    border: 1px solid #dee2e6;
+    height: auto;
+    min-height: 200px;
+}
+
+.diary-item .card:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+    transform: translateY(-2px);
+}
+
+/* 일기 내용 스타일 */
+.diary-content-full {
+    max-height: none;
+    overflow: visible;
+}
+
+.diary-content-full p {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #333;
+    margin-bottom: 0;
+    word-break: keep-all;
+    word-wrap: break-word;
+}
+
+/* 비용 정보 스타일 개선 */
+.price-breakdown .d-flex {
+    padding: 0.25rem 0;
+}
+
+.price-breakdown hr {
+    margin: 0.75rem 0;
+    border-top: 2px solid #dee2e6;
+}
+
+/* 일기 카드 번호 배지 스타일 */
+.diary-item .badge {
+    font-size: 0.8rem;
+    border-radius: 12px;
+    padding: 0.4rem 0.8rem;
+}
+
+/* 일기 제목 스타일 */
+.diary-item .card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #0d6efd;
+}
+
+/* 일기 날짜 스타일 */
+.diary-item .text-muted.fw-bold {
+    font-size: 0.85rem;
+}
+
+/* 일기 목록 컨테이너 */
+#diaryListContainer {
+    min-height: 200px;
 }
 
 /* 포토북 미리보기 스타일 */
@@ -452,69 +527,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Preview 페이지 초기화 중...');
-    
-    // 템플릿 선택 기능
-    const templateSelect = document.getElementById('templateSelect');
-    const selectedTemplateInput = document.getElementById('selectedTemplate');
-    
-    if (templateSelect && selectedTemplateInput) {
-        templateSelect.addEventListener('change', function() {
-            selectedTemplateInput.value = this.value;
-            console.log('선택된 템플릿:', this.value);
-        });
-    }
-    
-    // 모든 일기 보기/숨기기 토글
-    const toggleButton = document.getElementById('toggleAllDiaries');
-    if (toggleButton) {
-        const hiddenDiaries = document.querySelectorAll('.diary-preview-hidden');
-        let isExpanded = false;
-        
-        toggleButton.addEventListener('click', function() {
-            isExpanded = !isExpanded;
-            
-            hiddenDiaries.forEach(diary => {
-                if (isExpanded) {
-                    diary.classList.remove('diary-preview-hidden');
-                } else {
-                    diary.classList.add('diary-preview-hidden');
-                }
-            });
-            
-            const hiddenCount = hiddenDiaries.length;
-            if (isExpanded) {
-                this.innerHTML = '<i class="bi bi-chevron-up"></i> 일부만 보기';
-            } else {
-                this.innerHTML = '<i class="bi bi-chevron-down"></i> 모든 일기 보기 (' + hiddenCount + '개 더)';
-            }
-        });
-        
-        // 초기 상태 설정
-        const hiddenCount = hiddenDiaries.length;
-        if (hiddenCount > 0) {
-            toggleButton.innerHTML = '<i class="bi bi-chevron-down"></i> 모든 일기 보기 (' + hiddenCount + '개 더)';
-        }
-    }
-    
-    // 제작 요청 폼 처리
-    const orderForm = document.getElementById('orderForm');
-    if (orderForm) {
-        orderForm.addEventListener('submit', function(e) {
-            console.log('제작 요청 폼 제출됨');
-            
-            const submitBtn = this.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 제작 요청 중...';
-            }
-            
-            // 실제 제출 허용
-            return true;
-        });
-    }
-});
-</script>
+<!-- Preview 페이지의 모든 JavaScript 기능은 main.js에서 처리됩니다 -->
 {% endblock %}

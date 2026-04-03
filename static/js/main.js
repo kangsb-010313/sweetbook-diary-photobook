@@ -126,8 +126,91 @@ function initializeWritePage() {
 function initializePreviewPage() {
     console.log('미리보기 페이지 초기화 중...');
     
-    // 템플릿 선택 기능은 이미 HTML에 구현됨
-    // 추가 기능이 필요하면 여기에 구현
+    // Preview 페이지 기본 기능들을 초기화 (토글 기능 제거됨)
+    setTimeout(() => {
+        console.log('Preview 페이지 기본 기능 초기화 시작...');
+        initializePreviewBasicFeatures();
+    }, 200);
+}
+
+/**
+ * Preview 페이지의 기본 기능들 초기화 (토글 기능 제거됨)
+ */
+function initializePreviewBasicFeatures() {
+    console.log('Preview 기본 기능 초기화 시작...');
+    
+    // 1. 템플릿 선택 기능
+    initializeTemplateSelection();
+    
+    // 2. 제작 요청 폼 처리
+    initializeOrderForm();
+    
+    // 3. 일기 카드 애니메이션 (선택사항)
+    initializeDiaryCardAnimations();
+    
+    console.log('Preview 기본 기능 초기화 완료');
+}
+
+/**
+ * 템플릿 선택 기능
+ */
+function initializeTemplateSelection() {
+    const templateSelect = document.getElementById('templateSelect');
+    const selectedTemplateInput = document.getElementById('selectedTemplate');
+    
+    if (templateSelect && selectedTemplateInput) {
+        templateSelect.addEventListener('change', function() {
+            selectedTemplateInput.value = this.value;
+            console.log('선택된 템플릿:', this.value);
+        });
+        console.log('템플릿 선택 기능 초기화 완료');
+    } else {
+        console.log('템플릿 선택 요소를 찾을 수 없음');
+    }
+}
+
+/**
+ * 일기 카드 애니메이션 (토글 기능 대신 단순 애니메이션)
+ */
+function initializeDiaryCardAnimations() {
+    const diaryCards = document.querySelectorAll('.diary-item');
+    console.log('일기 카드 개수:', diaryCards.length);
+    
+    // 카드들을 순차적으로 나타나게 하는 애니메이션
+    diaryCards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            card.style.transition = 'all 0.5s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+    
+    console.log('일기 카드 애니메이션 초기화 완료');
+}
+
+/**
+ * 제작 요청 폼 처리
+ */
+function initializeOrderForm() {
+    const orderForm = document.getElementById('orderForm');
+    if (orderForm) {
+        orderForm.addEventListener('submit', function(e) {
+            console.log('제작 요청 폼 제출됨');
+            
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 제작 요청 중...';
+            }
+            
+            // 실제 제출 허용
+            return true;
+        });
+        console.log('제작 요청 폼 처리 초기화 완료');
+    }
 }
 
 /**
@@ -175,10 +258,12 @@ function initializeSmoothScroll() {
  * 로딩 상태 관리
  */
 function initializeLoadingStates() {
-    // 버튼 클릭 시 로딩 상태 표시 (포토북 폼 제외)
+    // 버튼 클릭 시 로딩 상태 표시 (포토북 관련 폼 제외)
     document.querySelectorAll('.btn[type="submit"]').forEach(button => {
-        // 포토북 만들기 버튼은 별도 처리
-        if (button.id === 'createPhotobookBtn') {
+        // 포토북 관련 버튼들은 별도 처리
+        if (button.id === 'createPhotobookBtn' || 
+            button.closest('#orderForm') || 
+            button.closest('#photobookForm')) {
             return;
         }
         
@@ -430,6 +515,12 @@ let updateSelectionInfo;
  */
 function initializeDiarySelection() {
     console.log('일기 선택 기능 초기화 실행 중...');
+    
+    // 미리보기 페이지에서는 일기 선택 기능을 초기화하지 않음
+    if (getCurrentPage() === 'preview') {
+        console.log('미리보기 페이지에서는 일기 선택 기능 초기화 건너뜀');
+        return;
+    }
     
     const checkboxes = document.querySelectorAll('.diary-checkbox');
     const selectAllBtn = document.getElementById('selectAllBtn');

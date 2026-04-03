@@ -12,104 +12,156 @@
         </div>
 
         <!-- 성공 메시지 -->
-        <h1 class="h2 text-success mb-3">주문이 완료되었습니다!</h1>
+        <h1 class="h2 text-success mb-3">포토북 주문이 완료되었습니다!</h1>
         <p class="lead text-muted mb-4">
-            포토북 제작 요청이 성공적으로 접수되었습니다.<br>
-            소중한 일기가 아름다운 포토북으로 제작됩니다.
+            실제 Sweetbook API를 통해 주문이 성공적으로 생성되었습니다.<br>
+            소중한 {{ selected_count }}개 일기가 아름다운 포토북으로 제작됩니다.
         </p>
 
         <!-- 주문 정보 카드 -->
         <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <h5 class="card-title mb-3">
-                    <i class="bi bi-receipt"></i> 주문 정보
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-receipt"></i> 주문 상세 정보
                 </h5>
-                
+            </div>
+            <div class="card-body">
                 <div class="row text-start">
                     <div class="col-sm-6 mb-3">
-                        <strong>주문 번호</strong><br>
-                        <span class="text-muted">TEST-ORDER-{{ range(100000, 999999) | random }}</span>
+                        <strong class="text-primary">주문 번호 (Order UID)</strong><br>
+                        <code class="text-dark">{{ order_uid }}</code>
                     </div>
                     <div class="col-sm-6 mb-3">
-                        <strong>주문 일시</strong><br>
-                        <span class="text-muted" id="orderDate"></span>
+                        <strong class="text-primary">포토북 ID (Book UID)</strong><br>
+                        <code class="text-dark">{{ book_uid }}</code>
                     </div>
                     <div class="col-sm-6 mb-3">
-                        <strong>포토북 제목</strong><br>
-                        <span class="text-muted">나의 일기 포토북</span>
+                        <strong class="text-primary">주문 상태</strong><br>
+                        <span class="badge bg-info">{{ order_status_display or order_status }}</span>
                     </div>
                     <div class="col-sm-6 mb-3">
-                        <strong>제작 상태</strong><br>
-                        <span class="badge bg-primary">접수 완료</span>
+                        <strong class="text-primary">주문 일시</strong><br>
+                        <span class="text-muted">{{ created_at[:19] if created_at else '방금 전' }}</span>
+                    </div>
+                    <div class="col-sm-6 mb-3">
+                        <strong class="text-primary">포토북 제목</strong><br>
+                        <span class="text-muted">{{ book_title }}</span>
+                    </div>
+                    <div class="col-sm-6 mb-3">
+                        <strong class="text-primary">페이지 수</strong><br>
+                        <span class="text-muted">{{ page_count }}페이지</span>
+                    </div>
+                    <div class="col-sm-6 mb-3">
+                        <strong class="text-primary">선택된 일기</strong><br>
+                        <span class="text-muted">{{ selected_count }}개</span>
+                    </div>
+                    <div class="col-sm-6 mb-3">
+                        <strong class="text-primary">결제 금액</strong><br>
+                        <span class="text-success fw-bold fs-5">{{ "{:,}".format(total_cost) }}원</span>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- 제작 진행 상태 -->
-                <div class="mt-4">
-                    <h6 class="mb-3">제작 진행 상태</h6>
-                    <div class="progress mb-2" style="height: 8px;">
-                        <div class="progress-bar bg-success" role="progressbar" style="width: 25%"></div>
+        <!-- 배송 정보 카드 -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-truck"></i> 배송 정보
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-start">
+                    <div class="col-sm-6 mb-3">
+                        <strong class="text-secondary">수령인</strong><br>
+                        <span class="text-muted">{{ shipping_info.name }}</span>
                     </div>
-                    <div class="d-flex justify-content-between small text-muted">
-                        <span>주문 접수</span>
-                        <span>제작 준비</span>
-                        <span>인쇄 중</span>
-                        <span>배송 준비</span>
-                        <span>완료</span>
+                    <div class="col-sm-6 mb-3">
+                        <strong class="text-secondary">연락처</strong><br>
+                        <span class="text-muted">{{ shipping_info.phone }}</span>
                     </div>
+                    <div class="col-12 mb-3">
+                        <strong class="text-secondary">배송 주소</strong><br>
+                        <span class="text-muted">{{ shipping_info.address }}</span>
+                    </div>
+                </div>
+                <div class="alert alert-info mb-0">
+                    <small>
+                        <i class="bi bi-info-circle"></i>
+                        <strong>TODO:</strong> 실제 서비스에서는 사용자가 입력한 배송 정보가 표시됩니다. 
+                        현재는 테스트용 고정값을 사용하고 있습니다.
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 제작 진행 상태 -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-gear"></i> 제작 진행 상태
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="progress mb-3" style="height: 12px;">
+                    <div class="progress-bar bg-success" role="progressbar" style="width: 25%"></div>
+                </div>
+                <div class="d-flex justify-content-between small text-muted">
+                    <span class="text-success fw-bold">✓ 주문 접수</span>
+                    <span>제작 준비</span>
+                    <span>인쇄 중</span>
+                    <span>배송 준비</span>
+                    <span>완료</span>
+                </div>
+                <div class="mt-3 text-start">
+                    <small class="text-muted">
+                        <i class="bi bi-clock"></i>
+                        예상 제작 기간: 3-5 영업일 (배송 기간 별도)
+                    </small>
                 </div>
             </div>
         </div>
 
         <!-- 안내 사항 -->
-        <div class="alert alert-info">
+        <div class="alert alert-success">
             <h6 class="alert-heading">
-                <i class="bi bi-info-circle"></i> 안내사항
+                <i class="bi bi-info-circle"></i> 주문 완료 안내
             </h6>
             <ul class="mb-0 text-start">
-                <li><strong>현재는 Sandbox 테스트 환경입니다.</strong> 실제 포토북 제작이나 배송은 이루어지지 않습니다.</li>
-                <li>실제 서비스에서는 BookPrint API를 통해 고품질 포토북이 제작됩니다.</li>
-                <li>제작 완료까지 보통 3-5일 정도 소요됩니다.</li>
-                <li>제작 상태는 이메일 또는 SMS로 안내됩니다.</li>
+                <li>실제 Sweetbook BookPrint API를 통해 포토북과 주문이 생성되었습니다.</li>
+                <li>주문 번호와 포토북 ID는 실제 API에서 발급된 고유 식별자입니다.</li>
+                <li>제작 진행 상황은 주문 번호로 확인하실 수 있습니다.</li>
+                <li>배송 정보 변경이나 주문 취소는 고객센터로 문의해주세요.</li>
             </ul>
         </div>
 
-        <!-- 다음 액션 버튼들 -->
-        <div class="row mt-4">
-            <div class="col-sm-6 mb-3">
-                <a href="/" class="btn btn-primary btn-lg w-100">
-                    <i class="bi bi-house"></i> 홈으로 돌아가기
-                </a>
-            </div>
-            <div class="col-sm-6 mb-3">
-                <a href="/write" class="btn btn-outline-primary btn-lg w-100">
-                    <i class="bi bi-plus-circle"></i> 새 일기 작성하기
-                </a>
-            </div>
+        <!-- 액션 버튼들 -->
+        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+            <a href="/" class="btn btn-primary btn-lg">
+                <i class="bi bi-house"></i> 홈으로 돌아가기
+            </a>
+            <a href="/write" class="btn btn-outline-primary btn-lg">
+                <i class="bi bi-plus-circle"></i> 새 일기 쓰기
+            </a>
         </div>
 
-        <!-- 추가 서비스 안내 -->
-        <div class="mt-5 p-4 bg-light rounded">
-            <h5 class="h6 mb-3">
-                <i class="bi bi-gift"></i> 더 많은 포토북을 만들어보세요
-            </h5>
-            <p class="text-muted mb-3">
-                일기를 꾸준히 작성하여 월별, 연도별 포토북을 만들어보세요.<br>
-                소중한 추억들이 아름다운 책으로 남게 됩니다.
-            </p>
-            <div class="row">
-                <div class="col-6">
-                    <a href="/preview" class="btn btn-outline-success w-100">
-                        <i class="bi bi-book"></i> 다른 포토북 만들기
-                    </a>
+        <!-- API 응답 디버깅 정보 (개발용) -->
+        {% if order_uid and book_uid %}
+        <div class="mt-5">
+            <details class="text-start">
+                <summary class="text-muted small">개발자 정보 (API 응답 확인용)</summary>
+                <div class="mt-2 p-3 bg-light rounded small">
+                    <strong>API 호출 결과:</strong><br>
+                    - BookPrint API 포토북 생성: ✅ 성공<br>
+                    - BookPrint API 주문 생성: ✅ 성공<br>
+                    - Book UID: <code>{{ book_uid }}</code><br>
+                    - Order UID: <code>{{ order_uid }}</code><br>
+                    - Order Status: <code>{{ order_status }}</code><br>
+                    - Template ID: <code>{{ template_id }}</code><br>
                 </div>
-                <div class="col-6">
-                    <button class="btn btn-outline-info w-100" onclick="shareSuccess()">
-                        <i class="bi bi-share"></i> 친구에게 공유하기
-                    </button>
-                </div>
-            </div>
+            </details>
         </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -117,74 +169,4 @@
 {% block extra_head %}
 <!-- Bootstrap Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-{% endblock %}
-
-{% block extra_scripts %}
-<script>
-// 페이지 로드 시 현재 날짜/시간 표시
-document.addEventListener('DOMContentLoaded', function() {
-    const now = new Date();
-    const options = { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric', 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    };
-    document.getElementById('orderDate').textContent = now.toLocaleDateString('ko-KR', options);
-    
-    // 진행 상태 애니메이션
-    setTimeout(() => {
-        const progressBar = document.querySelector('.progress-bar');
-        progressBar.style.transition = 'width 2s ease-in-out';
-        progressBar.style.width = '25%';
-    }, 500);
-});
-
-// 공유 기능
-function shareSuccess() {
-    const shareText = '일기 포토북 제작을 완료했어요! 📖✨\n소중한 추억을 아름다운 책으로 만들어보세요.';
-    
-    if (navigator.share) {
-        navigator.share({
-            title: '일기 포토북 제작 완료',
-            text: shareText,
-            url: window.location.origin
-        }).catch(console.error);
-    } else {
-        // 대체 방법: 클립보드에 복사
-        navigator.clipboard.writeText(shareText + '\n' + window.location.origin)
-            .then(() => {
-                alert('공유 링크가 클립보드에 복사되었습니다!');
-            })
-            .catch(() => {
-                alert('공유 기능을 사용할 수 없습니다.');
-            });
-    }
-}
-
-// 축하 효과 (선택사항)
-function celebrateSuccess() {
-    // 간단한 축하 애니메이션
-    const successIcon = document.querySelector('.bi-check-lg');
-    successIcon.style.animation = 'bounce 1s ease-in-out';
-}
-
-// 페이지 로드 후 축하 효과 실행
-setTimeout(celebrateSuccess, 1000);
-</script>
-
-<style>
-@keyframes bounce {
-    0%, 20%, 60%, 100% {
-        transform: translateY(0);
-    }
-    40% {
-        transform: translateY(-10px);
-    }
-    80% {
-        transform: translateY(-5px);
-    }
-}
-</style>
 {% endblock %}
