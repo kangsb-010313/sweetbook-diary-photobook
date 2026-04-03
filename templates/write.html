@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <!-- 페이지 헤더 -->
+        <div class="mb-4">
+            <h1 class="h2 mb-1">새 일기 작성</h1>
+            <p class="text-muted">오늘의 소중한 순간을 기록해보세요</p>
+        </div>
+
+        <!-- 일기 작성 폼 -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form id="diaryForm">
+                    <!-- 날짜 입력 -->
+                    <div class="mb-3">
+                        <label for="diaryDate" class="form-label">날짜</label>
+                        <input 
+                            type="date" 
+                            class="form-control" 
+                            id="diaryDate" 
+                            name="date" 
+                            required
+                            value="{{ today if today else '' }}"
+                        >
+                    </div>
+
+                    <!-- 제목 입력 -->
+                    <div class="mb-3">
+                        <label for="diaryTitle" class="form-label">제목</label>
+                        <input 
+                            type="text" 
+                            class="form-control" 
+                            id="diaryTitle" 
+                            name="title" 
+                            placeholder="예: 벚꽃 산책, 카페에서 보낸 오후..."
+                            required
+                        >
+                    </div>
+
+                    <!-- 내용 입력 -->
+                    <div class="mb-3">
+                        <label for="diaryContent" class="form-label">내용</label>
+                        <textarea 
+                            class="form-control" 
+                            id="diaryContent" 
+                            name="content" 
+                            rows="8" 
+                            placeholder="오늘 하루는 어떠셨나요? 특별한 순간이나 느낀 점을 자유롭게 적어보세요..."
+                            required
+                        ></textarea>
+                        <div class="form-text">
+                            이 내용은 포토북에 포함됩니다. 마음을 담아 작성해보세요.
+                        </div>
+                    </div>
+
+                    <!-- 이미지 업로드 (향후 구현) -->
+                    <div class="mb-4">
+                        <label for="diaryImage" class="form-label">사진 첨부 (선택사항)</label>
+                        <input 
+                            type="file" 
+                            class="form-control" 
+                            id="diaryImage" 
+                            name="image" 
+                            accept="image/*"
+                            disabled
+                        >
+                        <div class="form-text text-muted">
+                            <i class="bi bi-info-circle"></i> 
+                            사진 업로드 기능은 추후 구현 예정입니다.
+                        </div>
+                    </div>
+
+                    <!-- 버튼 그룹 -->
+                    <div class="d-flex gap-2 justify-content-between">
+                        <a href="/" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> 목록으로
+                        </a>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-primary" onclick="previewDiary()">
+                                <i class="bi bi-eye"></i> 미리보기
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> 저장하기
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 도움말 -->
+        <div class="mt-4 p-3 bg-light rounded">
+            <h5 class="h6 mb-2">
+                <i class="bi bi-lightbulb"></i> 일기 작성 팁
+            </h5>
+            <ul class="mb-0 small text-muted">
+                <li>하루 중 가장 기억에 남는 순간을 적어보세요</li>
+                <li>감정과 생각을 솔직하게 표현해보세요</li>
+                <li>나중에 포토북으로 만들었을 때를 상상하며 작성해보세요</li>
+                <li>사진과 함께 기록하면 더욱 생생한 추억이 됩니다</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// 오늘 날짜를 기본값으로 설정
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('diaryDate');
+    if (!dateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
+    }
+});
+
+// 일기 저장 (현재는 알림만 표시)
+document.getElementById('diaryForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const diaryData = {
+        date: formData.get('date'),
+        title: formData.get('title'),
+        content: formData.get('content')
+    };
+    
+    // TODO: 실제 저장 API 연동 예정
+    alert('일기가 저장되었습니다!\n(현재는 테스트 모드입니다)');
+    console.log('저장할 일기 데이터:', diaryData);
+    
+    // 임시로 홈으로 이동
+    window.location.href = '/';
+});
+
+// 미리보기 기능
+function previewDiary() {
+    const title = document.getElementById('diaryTitle').value;
+    const content = document.getElementById('diaryContent').value;
+    const date = document.getElementById('diaryDate').value;
+    
+    if (!title || !content || !date) {
+        alert('제목, 내용, 날짜를 모두 입력해주세요.');
+        return;
+    }
+    
+    // TODO: 실제 미리보기 페이지로 데이터 전달
+    alert(`미리보기:\n\n제목: ${title}\n날짜: ${date}\n내용: ${content.substring(0, 100)}...`);
+}
+</script>
+{% endblock %}

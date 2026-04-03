@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- 페이지 헤더 -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h2 mb-1">나의 일기 포토북</h1>
+                <p class="text-muted">소중한 일상을 아름다운 포토북으로 만들어보세요</p>
+            </div>
+            <div>
+                <a href="/write" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> 새 일기 쓰기
+                </a>
+            </div>
+        </div>
+
+        <!-- 일기 목록이 있는 경우 -->
+        {% if diaries %}
+        <div class="row">
+            {% for diary in diaries %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    {% if diary.image_path %}
+                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                        <i class="bi bi-image text-muted" style="font-size: 3rem;"></i>
+                        <small class="text-muted ms-2">{{ diary.image_path.split('/')[-1] }}</small>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0">{{ diary.title }}</h5>
+                            <small class="text-muted">{{ diary.date }}</small>
+                        </div>
+                        
+                        <p class="card-text text-muted">
+                            {{ diary.content[:100] }}{% if diary.content|length > 100 %}...{% endif %}
+                        </p>
+                        
+                        <div class="d-flex gap-2">
+                            <a href="/preview" class="btn btn-outline-primary btn-sm">
+                                포토북 만들기
+                            </a>
+                            <a href="/write" class="btn btn-outline-secondary btn-sm">
+                                수정하기
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 포토북 만들기 안내 -->
+        <div class="text-center mt-5 p-4 bg-light rounded">
+            <h3 class="h4 mb-3">포토북으로 만들어보세요!</h3>
+            <p class="text-muted mb-3">
+                작성한 일기들을 선택하여 나만의 특별한 포토북을 제작할 수 있습니다.
+            </p>
+            <a href="/preview" class="btn btn-success btn-lg">
+                <i class="bi bi-book"></i> 포토북 미리보기
+            </a>
+        </div>
+
+        {% else %}
+        <!-- 일기가 없는 경우 -->
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="bi bi-journal-text text-muted" style="font-size: 4rem;"></i>
+            </div>
+            <h3 class="h4 mb-3">아직 작성된 일기가 없습니다</h3>
+            <p class="text-muted mb-4">
+                첫 번째 일기를 작성하고 포토북으로 만들어보세요!
+            </p>
+            <a href="/write" class="btn btn-primary btn-lg">
+                <i class="bi bi-plus-circle"></i> 첫 일기 작성하기
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 서비스 소개 -->
+<div class="row mt-5">
+    <div class="col-12">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h4 class="card-title">📚 일기 포토북 서비스</h4>
+                <p class="card-text">
+                    BookPrint API를 활용하여 당신의 소중한 일기를 아름다운 포토북으로 제작합니다.
+                </p>
+                <small class="opacity-75">스위트북 개발 과제 MVP</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+{% endblock %}
