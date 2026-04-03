@@ -51,18 +51,24 @@ async def write_diary(request: Request):
 @app.post("/create-photobook", response_class=HTMLResponse)
 async def create_photobook(request: Request, selected_diaries: str = Form(...)):
     """선택된 일기들로 포토북 생성"""
+    print(f"[DEBUG] 포토북 생성 요청 받음 - selected_diaries: '{selected_diaries}'")
     try:
         # 선택된 일기 ID 파싱
         if not selected_diaries.strip():
+            print("[DEBUG] 선택된 일기가 없음 - 홈으로 리다이렉트")
             return RedirectResponse(url="/?error=no_selection", status_code=303)
         
         selected_ids = [id.strip() for id in selected_diaries.split(',') if id.strip()]
         selected_count = len(selected_ids)
+        print(f"[DEBUG] 파싱된 일기 ID들: {selected_ids}")
+        print(f"[DEBUG] 선택된 일기 개수: {selected_count}")
         
         # 선택 개수 검증
         validation = validate_diary_selection(selected_count)
+        print(f"[DEBUG] 검증 결과: {validation}")
         if not validation["valid"]:
             error_msg = validation["message"].replace(" ", "_")
+            print(f"[DEBUG] 검증 실패 - 홈으로 리다이렉트: {error_msg}")
             return RedirectResponse(url=f"/?error={error_msg}", status_code=303)
         
         # 선택된 일기 데이터 가져오기
@@ -79,6 +85,7 @@ async def create_photobook(request: Request, selected_diaries: str = Form(...)):
         
         # 미리보기 페이지로 리다이렉트 (쿼리 파라미터 사용)
         selected_ids_str = ','.join(selected_ids)
+        print(f"[DEBUG] 미리보기 페이지로 리다이렉트: /preview?selected={selected_ids_str}")
         return RedirectResponse(url=f"/preview?selected={selected_ids_str}", status_code=303)
         
     except Exception as e:
@@ -111,6 +118,46 @@ async def preview_photobook(request: Request, selected: str = None):
         specs = get_photobook_specs()
         templates_list = get_book_templates()
         
+        # 상태 메시지 생성
+        status_info = {
+            "type": "success",
+            "message": "제작 가능",
+            "description": ""
+        }
+        
+        if selected_count < 22:
+            status_info = {
+                "type": "error",
+                "message": "제작 불가",
+                "description": f"최소 22개 일기가 필요합니다. (현재: {selected_count}개)"
+            }
+        elif selected_count > 128:
+            status_info = {
+                "type": "error", 
+                "message": "제작 불가",
+                "description": f"최대 128개까지 선택 가능합니다. (현재: {selected_count}개)"
+            }
+        elif 30 <= selected_count <= 50:
+            status_info = {
+                "type": "recommended",
+                "message": "권장 범위",
+                "description": f"최적의 포토북 분량입니다. ({selected_count}개 선택)"
+            }
+        elif 22 <= selected_count < 30:
+            status_info = {
+                "type": "warning",
+                "message": "제작 가능",
+                "description": f"권장 범위보다 적습니다. (권장: 30~50개)"
+            }
+        else:  # 51~128개
+            status_info = {
+                "type": "warning",
+                "message": "제작 가능",
+                "description": f"권장 범위보다 많습니다. (권장: 30~50개)"
+            }
+        
+        print(f"[DEBUG] Preview 페이지 렌더링 - 선택 개수: {selected_count}, 상태: {status_info['type']}")
+        
         return templates.TemplateResponse(
             request=request,
             name="preview.html",
@@ -122,7 +169,8 @@ async def preview_photobook(request: Request, selected: str = None):
                 "cost_info": cost_info,
                 "specs": specs,
                 "templates": templates_list,
-                "selected_ids": selected_ids
+                "selected_ids": selected_ids,
+                "status_info": status_info
             }
         )
         

@@ -175,8 +175,13 @@ function initializeSmoothScroll() {
  * 로딩 상태 관리
  */
 function initializeLoadingStates() {
-    // 버튼 클릭 시 로딩 상태 표시
+    // 버튼 클릭 시 로딩 상태 표시 (포토북 폼 제외)
     document.querySelectorAll('.btn[type="submit"]').forEach(button => {
+        // 포토북 만들기 버튼은 별도 처리
+        if (button.id === 'createPhotobookBtn') {
+            return;
+        }
+        
         button.addEventListener('click', function() {
             if (this.form && this.form.checkValidity()) {
                 showButtonLoading(this);
@@ -238,6 +243,22 @@ function initializeFormValidation() {
     const forms = document.querySelectorAll('form');
     
     forms.forEach(form => {
+        // 포토북 폼은 별도 처리 (hidden input 때문에 validation 문제 발생 가능)
+        if (form.id === 'photobookForm') {
+            form.addEventListener('submit', function(e) {
+                const hiddenInput = form.querySelector('#selectedDiariesInput');
+                if (!hiddenInput || !hiddenInput.value.trim()) {
+                    e.preventDefault();
+                    console.log('포토북 폼 제출 차단: 선택된 일기가 없음');
+                    alert('일기를 선택해주세요.');
+                    return;
+                }
+                console.log('포토북 폼 제출 허용:', hiddenInput.value);
+            });
+            return;
+        }
+        
+        // 다른 폼들은 기존 validation 적용
         form.addEventListener('submit', function(e) {
             if (!form.checkValidity()) {
                 e.preventDefault();
@@ -517,6 +538,34 @@ function initializeDiarySelection() {
                 checkbox.checked = false;
             });
             updateSelectionInfo();
+        });
+    }
+    
+    // 포토북 폼 제출 이벤트 처리
+    const photobookForm = document.getElementById('photobookForm');
+    if (photobookForm) {
+        photobookForm.addEventListener('submit', function(e) {
+            console.log('포토북 폼 제출 시도됨');
+            
+            const hiddenInput = document.getElementById('selectedDiariesInput');
+            console.log('제출 시 Hidden input 값:', hiddenInput.value);
+            
+            if (!hiddenInput.value.trim()) {
+                e.preventDefault();
+                console.log('폼 제출 차단: 선택된 일기가 없음');
+                alert('일기를 선택해주세요.');
+                return false;
+            }
+            
+            // 버튼 로딩 상태로 변경 (제출은 허용)
+            const submitBtn = document.getElementById('createPhotobookBtn');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="loading"></span> 처리중...';
+            }
+            
+            console.log('폼 제출 허용 - 서버로 전송됨');
+            return true;
         });
     }
     

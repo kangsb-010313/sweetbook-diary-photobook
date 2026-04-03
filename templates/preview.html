@@ -12,23 +12,29 @@
                 </ol>
             </nav>
             <h1 class="h2 mb-1">포토북 미리보기</h1>
-            <p class="text-muted">선택하신 일기들로 제작될 포토북을 확인해보세요</p>
+            <p class="text-muted">선택하신 일기들로 제작될 포토북을 최종 확인해주세요</p>
         </div>
 
-        <!-- 선택된 일기 요약 -->
-        <div class="alert alert-success mb-4">
+        <!-- 선택 상태 요약 -->
+        <div class="alert {% if status_info.type == 'recommended' %}alert-success{% elif status_info.type == 'warning' %}alert-warning{% elif status_info.type == 'error' %}alert-danger{% else %}alert-info{% endif %} mb-4">
             <div class="row align-items-center">
                 <div class="col-md-8">
                     <h5 class="alert-heading mb-2">
-                        <i class="bi bi-check-circle"></i> 일기 선택 완료
-                    </h5>
-                    <p class="mb-0">
-                        <strong>{{ selected_count }}개 일기</strong>가 선택되었습니다. 
-                        <span class="text-muted">예상 페이지: {{ validation.page_count }}페이지</span>
-                        {% if validation.is_recommended %}
-                        <span class="badge bg-success ms-2">권장 범위</span>
+                        {% if status_info.type == 'recommended' %}
+                        <i class="bi bi-check-circle-fill"></i> {{ status_info.message }}
+                        {% elif status_info.type == 'warning' %}
+                        <i class="bi bi-exclamation-triangle-fill"></i> {{ status_info.message }}
+                        {% elif status_info.type == 'error' %}
+                        <i class="bi bi-x-circle-fill"></i> {{ status_info.message }}
+                        {% else %}
+                        <i class="bi bi-info-circle-fill"></i> {{ status_info.message }}
                         {% endif %}
+                    </h5>
+                    <p class="mb-1">
+                        <strong>선택된 일기: {{ selected_count }}개</strong> → 
+                        <strong>최종 페이지: {{ validation.page_count }}페이지</strong>
                     </p>
+                    <small class="opacity-75">{{ status_info.description }}</small>
                 </div>
                 <div class="col-md-4 text-md-end mt-2 mt-md-0">
                     <a href="/" class="btn btn-outline-primary btn-sm">
@@ -44,27 +50,47 @@
                 <div class="card shadow-sm mb-4">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="bi bi-book"></i> 포토북 사양
+                            <i class="bi bi-book"></i> 포토북 사양 정보
                         </h5>
                     </div>
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
-                                <ul class="list-unstyled">
-                                    <li><strong>판형:</strong> {{ specs.name }}</li>
-                                    <li><strong>크기:</strong> {{ specs.size }}</li>
-                                    <li><strong>표지:</strong> {{ specs.cover_type }}</li>
+                                <ul class="list-unstyled mb-0">
+                                    <li class="mb-2"><strong>판형:</strong> {{ specs.name }}</li>
+                                    <li class="mb-2"><strong>크기:</strong> {{ specs.size }}</li>
+                                    <li class="mb-2"><strong>표지:</strong> {{ specs.cover_type }}</li>
                                 </ul>
                             </div>
                             <div class="col-md-6">
-                                <ul class="list-unstyled">
-                                    <li><strong>제본:</strong> {{ specs.binding_type }}</li>
-                                    <li><strong>페이지:</strong> {{ validation.page_count }}페이지</li>
-                                    <li><strong>일기 수:</strong> {{ selected_count }}개</li>
+                                <ul class="list-unstyled mb-0">
+                                    <li class="mb-2"><strong>제본:</strong> {{ specs.binding_type }}</li>
+                                    <li class="mb-2"><strong>최종 페이지:</strong> {{ validation.page_count }}페이지</li>
+                                    <li class="mb-2"><strong>일기 수:</strong> {{ selected_count }}개</li>
                                 </ul>
                             </div>
                         </div>
-                        <div class="alert alert-light mt-3">
+                        
+                        <hr class="my-3">
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-muted mb-2">페이지 제한</h6>
+                                <p class="small mb-0">
+                                    최소 {{ specs.min_pages }}페이지 ~ 최대 {{ specs.max_pages }}페이지
+                                    <br>{{ specs.page_increment }}페이지 단위로 제작
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-muted mb-2">권장 일기 수</h6>
+                                <p class="small mb-0">
+                                    권장: {{ specs.recommended_diaries.recommended_min }}~{{ specs.recommended_diaries.recommended_max }}개
+                                    <br>최소 {{ specs.recommended_diaries.min }}개 ~ 최대 {{ specs.recommended_diaries.max }}개
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-light mt-3 mb-0">
                             <small>
                                 <i class="bi bi-info-circle"></i>
                                 각 일기는 1페이지로 구성되며, 상단 40%는 이미지, 하단 60%는 텍스트 영역입니다.
@@ -75,41 +101,55 @@
 
                 <!-- 선택된 일기 목록 -->
                 <div class="card shadow-sm">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
-                            <i class="bi bi-journal-text"></i> 선택된 일기 목록
+                            <i class="bi bi-journal-text"></i> 선택된 일기 목록 ({{ selected_count }}개)
                         </h5>
+                        {% if selected_count > 8 %}
+                        <button class="btn btn-outline-secondary btn-sm" id="toggleAllDiaries">
+                            <i class="bi bi-chevron-down"></i> 모든 일기 보기
+                        </button>
+                        {% endif %}
                     </div>
                     <div class="card-body">
                         <div class="row">
                             {% for diary in selected_diaries %}
-                            <div class="col-md-6 mb-3 {% if loop.index > 6 %}diary-preview-hidden{% endif %}">
-                                <div class="card border-0 bg-light h-100">
+                            <div class="col-md-6 mb-3 {% if loop.index > 8 %}diary-preview-hidden{% endif %}">
+                                <div class="card border h-100">
                                     <div class="card-body p-3">
                                         <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <h6 class="card-title mb-0">{{ diary.title }}</h6>
+                                            <div class="badge bg-primary">{{ loop.index }}번째</div>
                                             <small class="text-muted">{{ diary.date }}</small>
                                         </div>
-                                        <p class="card-text small text-muted mb-2">
-                                            {{ diary.content[:100] }}{% if diary.content|length > 100 %}...{% endif %}
+                                        <h6 class="card-title">{{ diary.title }}</h6>
+                                        <p class="card-text small text-muted mb-2" style="line-height: 1.4;">
+                                            {{ diary.content[:150] }}{% if diary.content|length > 150 %}...{% endif %}
                                         </p>
-                                        <small class="text-muted">
-                                            <i class="bi bi-file-text"></i> {{ diary.content|length }}자
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-muted">
+                                                <i class="bi bi-file-text"></i> {{ diary.content|length }}자
+                                            </small>
                                             {% if diary.image_path %}
-                                            <i class="bi bi-image ms-2"></i> 이미지 포함
+                                            <small class="text-success">
+                                                <i class="bi bi-image"></i> 이미지 포함
+                                            </small>
+                                            {% else %}
+                                            <small class="text-muted">
+                                                <i class="bi bi-file-text"></i> 텍스트만
+                                            </small>
                                             {% endif %}
-                                        </small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                             {% endfor %}
                         </div>
                         
-                        {% if selected_count > 6 %}
-                        <div class="text-center mt-3">
-                            <button class="btn btn-outline-secondary btn-sm" id="toggleAllDiaries">
-                                <i class="bi bi-chevron-down"></i> 모든 일기 보기 ({{ selected_count - 6 }}개 더)
-                            </button>
+                        {% if selected_count == 0 %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-journal-x text-muted" style="font-size: 3rem;"></i>
+                            <h6 class="text-muted mt-2">선택된 일기가 없습니다</h6>
+                            <a href="/" class="btn btn-primary mt-2">일기 선택하러 가기</a>
                         </div>
                         {% endif %}
                     </div>
@@ -117,66 +157,163 @@
             </div>
 
             <div class="col-lg-4">
-                <!-- 주문 정보 -->
+                <!-- 주문 정보 카드 -->
                 <div class="card shadow-sm sticky-top">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="bi bi-receipt"></i> 주문 정보
+                            <i class="bi bi-receipt"></i> 제작 정보
                         </h5>
                     </div>
                     <div class="card-body">
+                        <!-- 제작 요약 -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold">포토북 사양</span>
+                                <span class="badge bg-primary">{{ cost_info.book_spec_uid }}</span>
+                            </div>
+                            <ul class="list-unstyled small mb-0">
+                                <li>📖 {{ validation.page_count }}페이지 ({{ selected_count }}개 일기 + 표지)</li>
+                                <li>📏 {{ specs.size }} (정사각형)</li>
+                                <li>📘 {{ specs.cover_type }}</li>
+                                <li>🔗 {{ specs.binding_type }}</li>
+                            </ul>
+                        </div>
+
                         <!-- 가격 정보 -->
                         <div class="mb-4">
-                            <h6 class="mb-3">가격 정보</h6>
+                            <h6 class="mb-3">💰 예상 제작 비용</h6>
                             <div class="price-breakdown">
-                                {% for item, price in cost_info.price_breakdown.items() %}
                                 <div class="d-flex justify-content-between mb-2">
-                                    <span class="small">{{ item }}</span>
-                                    <span class="small">{{ price }}</span>
+                                    <span class="small">기본 제작비 (24페이지)</span>
+                                    <span class="small">{{ "{:,}".format(cost_info.base_price) }}원</span>
                                 </div>
-                                {% endfor %}
+                                {% if cost_info.additional_cost > 0 %}
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="small">추가 페이지 비용 ({{ validation.page_count - 24 }}페이지)</span>
+                                    <span class="small">{{ "{:,}".format(cost_info.additional_cost) }}원</span>
+                                </div>
+                                {% endif %}
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="small">배송비</span>
+                                    <span class="small">{{ "{:,}".format(cost_info.shipping_fee) }}원</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="small">부가세 (10%)</span>
+                                    <span class="small">{{ "{:,}".format(cost_info.vat_amount) }}원</span>
+                                </div>
                                 <hr class="my-3">
                                 <div class="d-flex justify-content-between">
-                                    <strong>총 결제 금액</strong>
+                                    <strong>총 예상 금액</strong>
                                     <strong class="text-primary fs-5">{{ "{:,}".format(cost_info.total_price) }}원</strong>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- 예상 제작 기간 -->
+                        <!-- 제작 안내 -->
                         <div class="mb-4">
-                            <h6 class="mb-2">예상 제작 기간</h6>
-                            <p class="small text-muted mb-0">
-                                <i class="bi bi-clock"></i> 주문 후 7~10일 (영업일 기준)
-                            </p>
-                            <p class="small text-muted mb-0">
-                                <i class="bi bi-truck"></i> 무료배송 (전국)
-                            </p>
+                            <h6 class="mb-2">📅 제작 안내</h6>
+                            <ul class="list-unstyled small text-muted mb-0">
+                                <li><i class="bi bi-clock"></i> 제작 기간: 7~10일 (영업일 기준)</li>
+                                <li><i class="bi bi-truck"></i> 배송: 무료배송 (전국)</li>
+                                <li><i class="bi bi-shield-check"></i> 품질보증: 30일 A/S</li>
+                            </ul>
                         </div>
 
                         <!-- 템플릿 선택 -->
                         <div class="mb-4">
-                            <h6 class="mb-2">템플릿 선택</h6>
+                            <h6 class="mb-2">🎨 디자인 템플릿</h6>
                             <select class="form-select" id="templateSelect">
                                 {% for template in templates %}
                                 <option value="{{ template.template_id }}">{{ template.name }}</option>
                                 {% endfor %}
                             </select>
-                            <small class="text-muted">선택한 템플릿으로 포토북이 제작됩니다</small>
+                            <small class="text-muted mt-1 d-block">선택한 템플릿으로 포토북이 제작됩니다</small>
                         </div>
 
-                        <!-- 주문하기 버튼 -->
+                        <!-- 액션 버튼 -->
                         <div class="d-grid gap-2">
-                            <form method="post" action="/success">
+                            {% if status_info.type == 'error' %}
+                            <button class="btn btn-danger btn-lg" disabled>
+                                <i class="bi bi-x-circle"></i> 제작 불가
+                            </button>
+                            <small class="text-danger text-center">{{ status_info.description }}</small>
+                            {% else %}
+                            <form method="post" action="/success" id="orderForm">
                                 <input type="hidden" name="selected_diaries" value="{{ ','.join(selected_ids) }}">
                                 <input type="hidden" name="template_id" id="selectedTemplate" value="{{ templates[0].template_id }}">
+                                <input type="hidden" name="page_count" value="{{ validation.page_count }}">
+                                <input type="hidden" name="total_cost" value="{{ cost_info.total_price }}">
                                 <button type="submit" class="btn btn-success btn-lg w-100">
                                     <i class="bi bi-cart-plus"></i> 포토북 제작 요청
                                 </button>
                             </form>
+                            {% endif %}
+                            
                             <a href="/" class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-left"></i> 홈으로 돌아가기
                             </a>
+                        </div>
+
+                        <!-- 제작 요청 안내 -->
+                        {% if status_info.type != 'error' %}
+                        <div class="alert alert-light mt-3 mb-0">
+                            <small>
+                                <i class="bi bi-info-circle"></i>
+                                <strong>제작 요청</strong> 버튼을 클릭하면 포토북 제작이 시작됩니다.
+                                <br>현재는 테스트 모드로 실제 결제는 발생하지 않습니다.
+                            </small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 포토북 레이아웃 미리보기 -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-eye"></i> 포토북 레이아웃 미리보기
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="text-center mb-3">
+                                    <h6>표지 페이지</h6>
+                                    <div class="preview-page cover-page">
+                                        <div class="cover-content">
+                                            <h5>나의 일기 포토북</h5>
+                                            <p class="small">{{ selected_diaries[0].date if selected_diaries else '2026-01-01' }} ~ {{ selected_diaries[-1].date if selected_diaries else '2026-12-31' }}</p>
+                                            <small class="text-muted">{{ selected_count }}개의 소중한 기록</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="text-center mb-3">
+                                    <h6>내지 페이지 (예시)</h6>
+                                    <div class="preview-page content-page">
+                                        <div class="page-image-area">
+                                            <i class="bi bi-image text-muted"></i>
+                                            <small>이미지 영역 (40%)</small>
+                                        </div>
+                                        <div class="page-text-area">
+                                            <h6>{{ selected_diaries[0].title if selected_diaries else '일기 제목' }}</h6>
+                                            <p class="small">{{ (selected_diaries[0].content[:80] + '...') if selected_diaries else '일기 내용이 여기에 표시됩니다...' }}</p>
+                                            <small class="text-muted">텍스트 영역 (60%)</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <small class="text-muted">
+                                실제 포토북에서는 선택하신 {{ selected_count }}개 일기가 각각 1페이지씩 배치됩니다.
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -191,6 +328,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
 
 <style>
+/* Preview 페이지 전용 스타일 */
 .price-breakdown {
     font-size: 0.9rem;
 }
@@ -199,24 +337,116 @@
     top: 1rem;
 }
 
-.card.border-0.bg-light {
-    transition: all 0.3s ease;
+.diary-preview-hidden {
+    display: none;
 }
 
-.card.border-0.bg-light:hover {
-    background-color: #e9ecef !important;
-    transform: translateY(-1px);
+/* 포토북 미리보기 스타일 */
+.preview-page {
+    width: 180px;
+    height: 180px;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
+.cover-page {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 1rem;
+}
+
+.cover-content h5 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.cover-content p {
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+}
+
+.content-page {
+    background: white;
+}
+
+.page-image-area {
+    height: 40%;
+    background-color: #f8f9fa;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.page-image-area i {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.page-image-area small {
+    font-size: 0.7rem;
+    color: #6c757d;
+}
+
+.page-text-area {
+    height: 60%;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.page-text-area h6 {
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.page-text-area p {
+    font-size: 0.7rem;
+    line-height: 1.3;
+    color: #666;
+    flex: 1;
+    margin-bottom: 0.25rem;
+}
+
+.page-text-area small {
+    font-size: 0.65rem;
+    color: #999;
+    align-self: flex-end;
+}
+
+/* 반응형 조정 */
 @media (max-width: 991px) {
     .sticky-top {
         position: relative !important;
         margin-top: 2rem;
     }
+    
+    .preview-page {
+        width: 150px;
+        height: 150px;
+    }
 }
 
-.diary-preview-hidden {
-    display: none;
+@media (max-width: 576px) {
+    .preview-page {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .page-text-area {
+        padding: 0.5rem;
+    }
 }
 </style>
 {% endblock %}
@@ -224,6 +454,8 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Preview 페이지 초기화 중...');
+    
     // 템플릿 선택 기능
     const templateSelect = document.getElementById('templateSelect');
     const selectedTemplateInput = document.getElementById('selectedTemplate');
@@ -238,28 +470,49 @@ document.addEventListener('DOMContentLoaded', function() {
     // 모든 일기 보기/숨기기 토글
     const toggleButton = document.getElementById('toggleAllDiaries');
     if (toggleButton) {
-        const allDiaryCards = document.querySelectorAll('.col-md-6');
+        const hiddenDiaries = document.querySelectorAll('.diary-preview-hidden');
         let isExpanded = false;
         
         toggleButton.addEventListener('click', function() {
             isExpanded = !isExpanded;
             
-            allDiaryCards.forEach((card, index) => {
-                if (index >= 6) {
-                    if (isExpanded) {
-                        card.classList.remove('diary-preview-hidden');
-                    } else {
-                        card.classList.add('diary-preview-hidden');
-                    }
+            hiddenDiaries.forEach(diary => {
+                if (isExpanded) {
+                    diary.classList.remove('diary-preview-hidden');
+                } else {
+                    diary.classList.add('diary-preview-hidden');
                 }
             });
             
-            const remainingCount = {{ selected_count }} - 6;
+            const hiddenCount = hiddenDiaries.length;
             if (isExpanded) {
                 this.innerHTML = '<i class="bi bi-chevron-up"></i> 일부만 보기';
             } else {
-                this.innerHTML = '<i class="bi bi-chevron-down"></i> 모든 일기 보기 (' + remainingCount + '개 더)';
+                this.innerHTML = '<i class="bi bi-chevron-down"></i> 모든 일기 보기 (' + hiddenCount + '개 더)';
             }
+        });
+        
+        // 초기 상태 설정
+        const hiddenCount = hiddenDiaries.length;
+        if (hiddenCount > 0) {
+            toggleButton.innerHTML = '<i class="bi bi-chevron-down"></i> 모든 일기 보기 (' + hiddenCount + '개 더)';
+        }
+    }
+    
+    // 제작 요청 폼 처리
+    const orderForm = document.getElementById('orderForm');
+    if (orderForm) {
+        orderForm.addEventListener('submit', function(e) {
+            console.log('제작 요청 폼 제출됨');
+            
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 제작 요청 중...';
+            }
+            
+            // 실제 제출 허용
+            return true;
         });
     }
 });
