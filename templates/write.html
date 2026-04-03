@@ -100,10 +100,10 @@
                         </a>
 
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-outline-primary" id="previewDiaryBtn">
+                            <button type="button" class="btn btn-outline-primary" id="previewDiaryBtn" form="diaryForm">
                                 <i class="bi bi-eye"></i> 미리보기
                             </button>
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" id="saveDiaryBtn" class="btn btn-primary" form="diaryForm">
                                 <i class="bi bi-save"></i> 저장하기
                             </button>
                         </div>
@@ -151,7 +151,9 @@ document.addEventListener('DOMContentLoaded', function() {
         updateCount();
     }
 
-    document.getElementById('previewDiaryBtn')?.addEventListener('click', function() {
+    document.getElementById('previewDiaryBtn')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         const title = document.getElementById('diaryTitle')?.value || '';
         const content = document.getElementById('diaryContent')?.value || '';
         const date = document.getElementById('diaryDate')?.value || '';
@@ -160,6 +162,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         alert('미리보기:\n\n제목: ' + title + '\n날짜: ' + date + '\n내용: ' + content.substring(0, 120) + (content.length > 120 ? '...' : ''));
+    });
+
+    document.getElementById('saveDiaryBtn')?.addEventListener('click', function() {
+        console.log('저장 버튼 클릭');
     });
 });
 </script>

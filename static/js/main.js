@@ -258,12 +258,13 @@ function initializeSmoothScroll() {
  * 로딩 상태 관리
  */
 function initializeLoadingStates() {
-    // 버튼 클릭 시 로딩 상태 표시 (포토북 관련 폼 제외)
+    // 버튼 클릭 시 로딩 상태 표시 (포토북·일기저장 폼 제외)
+    // 일기 저장: submit 클릭 시 disabled 되면 브라우저가 폼 제출을 하지 않음 → POST /write 가 막힘
     document.querySelectorAll('.btn[type="submit"]').forEach(button => {
-        // 포토북 관련 버튼들은 별도 처리
-        if (button.id === 'createPhotobookBtn' || 
-            button.closest('#orderForm') || 
-            button.closest('#photobookForm')) {
+        if (button.id === 'createPhotobookBtn' ||
+            button.closest('#orderForm') ||
+            button.closest('#photobookForm') ||
+            button.closest('#diaryForm')) {
             return;
         }
         
@@ -328,6 +329,10 @@ function initializeFormValidation() {
     const forms = document.querySelectorAll('form');
     
     forms.forEach(form => {
+        // 일기 작성 폼: 네이티브 POST 제출 유지 (main.js에서 checkValidity 로 막지 않음)
+        if (form.id === 'diaryForm') {
+            return;
+        }
         // 포토북 폼은 별도 처리 (hidden input 때문에 validation 문제 발생 가능)
         if (form.id === 'photobookForm') {
             form.addEventListener('submit', function(e) {

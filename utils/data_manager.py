@@ -48,11 +48,13 @@ def save_dummy_data(data: Dict[str, Any]) -> None:
     임시 파일에 쓴 뒤 replace 로 원자적 교체합니다.
     """
     path = _json_path()
+    print(f"[DEBUG] save_dummy_data 대상 경로 (_json_path) = {path}")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp_path = path + ".tmp"
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp_path, path)
+    print(f"[DEBUG] save_dummy_data 완료: {path} (diaries {len(data.get('diaries', []))}건)")
 
 
 def add_diary(
@@ -81,6 +83,7 @@ def add_diary(
 
     diaries.append(entry)
     data["diaries"] = diaries
+    print(f"[DEBUG] add_diary: 새 id={next_id}, title={title.strip()!r}")
     save_dummy_data(data)
     return entry
 

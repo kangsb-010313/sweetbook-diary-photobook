@@ -80,6 +80,8 @@ async def write_diary_post(
     image: UploadFile | None = File(None),
 ):
     """일기 저장: JSON 반영 + 선택적 이미지를 static/uploads/ 에 저장"""
+    print("[DEBUG] === /write POST 진입 ===")
+    print(f"[DEBUG] title={title!r}, date={date!r}, content_len={len(content or '')}")
     title = (title or "").strip()
     date = (date or "").strip()
     content = (content or "").strip()
@@ -137,8 +139,11 @@ async def write_diary_post(
             with dest.open("wb") as buffer:
                 shutil.copyfileobj(image.file, buffer)
             image_relpath = f"static/uploads/{unique}"
+            print(f"[DEBUG] 이미지 저장 완료: {image_relpath}")
 
+        print("[DEBUG] add_diary 호출 직전")
         add_diary(title=title, content=content, date=date, image_path=image_relpath)
+        print("[DEBUG] add_diary 호출 완료")
     except Exception as e:
         print(f"[ERROR] 일기 저장 실패: {e}")
         return templates.TemplateResponse(
@@ -154,6 +159,7 @@ async def write_diary_post(
             },
         )
 
+    print("[DEBUG] RedirectResponse → /?saved=1 (303)")
     return RedirectResponse(url="/?saved=1", status_code=303)
 
 @app.post("/create-photobook", response_class=HTMLResponse)
