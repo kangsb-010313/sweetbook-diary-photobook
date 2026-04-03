@@ -9,48 +9,64 @@
             <p class="text-muted">오늘의 소중한 순간을 기록해보세요</p>
         </div>
 
+        {% if success %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill"></i> 일기가 저장되었습니다. 목록에서 확인할 수 있습니다.
+            <a href="/" class="alert-link ms-2">메인으로</a>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+
+        {% if error_message %}
+        <div class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i> {{ error_message }}
+        </div>
+        {% endif %}
+
         <!-- 일기 작성 폼 -->
         <div class="card shadow-sm">
             <div class="card-body">
-                <form id="diaryForm">
+                <form id="diaryForm" method="post" action="/write" enctype="multipart/form-data" novalidate>
                     <!-- 날짜 입력 -->
                     <div class="mb-3">
                         <label for="diaryDate" class="form-label">날짜</label>
-                        <input 
-                            type="date" 
-                            class="form-control" 
-                            id="diaryDate" 
-                            name="date" 
+                        <input
+                            type="date"
+                            class="form-control"
+                            id="diaryDate"
+                            name="date"
                             required
-                            value="{{ today if today else '' }}"
+                            value="{{ form_date if form_date else today }}"
                         >
                     </div>
 
                     <!-- 제목 입력 -->
                     <div class="mb-3">
                         <label for="diaryTitle" class="form-label">제목</label>
-                        <input 
-                            type="text" 
-                            class="form-control" 
-                            id="diaryTitle" 
-                            name="title" 
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="diaryTitle"
+                            name="title"
                             placeholder="예: 벚꽃 산책, 카페에서 보낸 오후..."
                             required
+                            maxlength="200"
+                            value="{{ form_title }}"
                         >
                     </div>
 
                     <!-- 내용 입력 -->
                     <div class="mb-3">
                         <label for="diaryContent" class="form-label">내용</label>
-                        <textarea 
-                            class="form-control" 
-                            id="diaryContent" 
-                            name="content" 
-                            rows="10" 
+                        <textarea
+                            class="form-control"
+                            id="diaryContent"
+                            name="content"
+                            rows="10"
                             maxlength="600"
                             placeholder="오늘 하루는 어떠셨나요? 특별한 순간이나 느낀 점을 자유롭게 적어보세요..."
                             required
-                        ></textarea>
+                        >{{ form_content }}</textarea>
                         <div class="d-flex justify-content-between">
                             <div class="form-text">
                                 포토북 페이지에서 상단 40%는 이미지, 하단 60%는 텍스트 영역으로 사용됩니다.
@@ -61,21 +77,19 @@
                         </div>
                     </div>
 
-                    <!-- 이미지 업로드 (향후 구현) -->
+                    <!-- 이미지 업로드 (선택) -->
                     <div class="mb-4">
                         <label for="diaryImage" class="form-label">사진 첨부 (선택사항)</label>
-                        <input 
-                            type="file" 
-                            class="form-control" 
-                            id="diaryImage" 
-                            name="image" 
-                            accept="image/*"
-                            disabled
+                        <input
+                            type="file"
+                            class="form-control"
+                            id="diaryImage"
+                            name="image"
+                            accept="image/jpeg,image/jpg,image/png,image/webp"
                         >
                         <div class="form-text text-muted">
-                            <i class="bi bi-info-circle"></i> 
-                            포토북에서 이미지는 가로형 직사각형으로 자동 조정됩니다. 
-                            사진 업로드 기능은 추후 구현 예정입니다.
+                            <i class="bi bi-info-circle"></i>
+                            jpg, jpeg, png, webp 만 가능합니다. 포토북에서 이미지는 레이아웃에 맞게 조정될 수 있습니다.
                         </div>
                     </div>
 
@@ -84,9 +98,9 @@
                         <a href="/" class="btn btn-outline-secondary">
                             <i class="bi bi-arrow-left"></i> 목록으로
                         </a>
-                        
+
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-outline-primary" onclick="previewDiary()">
+                            <button type="button" class="btn btn-outline-primary" id="previewDiaryBtn">
                                 <i class="bi bi-eye"></i> 미리보기
                             </button>
                             <button type="submit" class="btn btn-primary">
@@ -121,47 +135,32 @@
 
 {% block extra_scripts %}
 <script>
-// 오늘 날짜를 기본값으로 설정
 document.addEventListener('DOMContentLoaded', function() {
     const dateInput = document.getElementById('diaryDate');
-    if (!dateInput.value) {
-        const today = new Date().toISOString().split('T')[0];
-        dateInput.value = today;
+    if (dateInput && !dateInput.value) {
+        dateInput.value = new Date().toISOString().split('T')[0];
     }
-});
 
-// 일기 저장 (현재는 알림만 표시)
-document.getElementById('diaryForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    const diaryData = {
-        date: formData.get('date'),
-        title: formData.get('title'),
-        content: formData.get('content')
-    };
-    
-    // TODO: 실제 저장 API 연동 예정
-    alert('일기가 저장되었습니다!\n(현재는 테스트 모드입니다)');
-    console.log('저장할 일기 데이터:', diaryData);
-    
-    // 임시로 홈으로 이동
-    window.location.href = '/';
-});
-
-// 미리보기 기능
-function previewDiary() {
-    const title = document.getElementById('diaryTitle').value;
-    const content = document.getElementById('diaryContent').value;
-    const date = document.getElementById('diaryDate').value;
-    
-    if (!title || !content || !date) {
-        alert('제목, 내용, 날짜를 모두 입력해주세요.');
-        return;
+    const ta = document.getElementById('diaryContent');
+    const charCount = document.getElementById('charCount');
+    function updateCount() {
+        if (ta && charCount) charCount.textContent = String(ta.value.length);
     }
-    
-    // TODO: 실제 미리보기 페이지로 데이터 전달
-    alert(`미리보기:\n\n제목: ${title}\n날짜: ${date}\n내용: ${content.substring(0, 100)}...`);
-}
+    if (ta) {
+        ta.addEventListener('input', updateCount);
+        updateCount();
+    }
+
+    document.getElementById('previewDiaryBtn')?.addEventListener('click', function() {
+        const title = document.getElementById('diaryTitle')?.value || '';
+        const content = document.getElementById('diaryContent')?.value || '';
+        const date = document.getElementById('diaryDate')?.value || '';
+        if (!title || !content || !date) {
+            alert('제목, 내용, 날짜를 모두 입력해주세요.');
+            return;
+        }
+        alert('미리보기:\n\n제목: ' + title + '\n날짜: ' + date + '\n내용: ' + content.substring(0, 120) + (content.length > 120 ? '...' : ''));
+    });
+});
 </script>
 {% endblock %}

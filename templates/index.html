@@ -18,6 +18,13 @@
 
         <!-- 일기 목록이 있는 경우 -->
         {% if diaries %}
+
+        {% if saved %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill"></i> 새 일기가 저장되었습니다.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
         
         <!-- 포토북 제작 안내 -->
         <div class="alert alert-info mb-4">
@@ -75,9 +82,13 @@
                     </div>
                     
                     {% if diary.image_path %}
-                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
-                        <i class="bi bi-image text-muted" style="font-size: 3rem;"></i>
-                        <small class="text-muted ms-2">{{ diary.image_path.split('/')[-1] }}</small>
+                    <div class="card-img-top bg-light overflow-hidden" style="height: 200px;">
+                        <img src="/{{ diary.image_path }}" alt="" class="w-100 h-100" style="object-fit: cover;"
+                             onerror="this.onerror=null;this.outerHTML='<div class=\'d-flex align-items-center justify-content-center h-100 text-muted\'><i class=\'bi bi-image\' style=\'font-size:3rem\'></i><small class=\'ms-2\'>이미지를 불러올 수 없음</small></div>';">
+                    </div>
+                    {% else %}
+                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center text-muted" style="height: 120px;">
+                        <small><i class="bi bi-image"></i> 사진 없음</small>
                     </div>
                     {% endif %}
                     

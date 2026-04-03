@@ -1,11 +1,14 @@
 import os
+import shutil
+import uuid
+from pathlib import Path
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from utils.data_manager import get_diaries, load_dummy_data
+from utils.data_manager import get_diaries, load_dummy_data, add_diary
 from utils.book_api import (
     get_book_templates, estimate_book_cost, validate_diary_selection, get_photobook_specs,
     create_book_with_diaries, create_book_order
@@ -28,29 +31,130 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Jinja2 템플릿 설정
 templates = Jinja2Templates(directory="templates")
 
+ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """메인 페이지 - 일기 목록 표시"""
     diaries = get_diaries()
+    saved = request.query_params.get("saved")
     return templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
             "diaries": diaries,
-            "page_title": "나의 일기 포토북"
+            "page_title": "나의 일기 포토북",
+            "saved": saved,
         }
     )
 
+
 @app.get("/write", response_class=HTMLResponse)
-async def write_diary(request: Request):
+async def write_diary_get(request: Request):
     """일기 작성 페이지"""
+    success = request.query_params.get("success")
+    err_q = request.query_params.get("error")
+    today = datetime.now().date().isoformat()
     return templates.TemplateResponse(
         request=request,
         name="write.html",
         context={
-            "page_title": "새 일기 작성"
+            "page_title": "새 일기 작성",
+            "today": today,
+            "success": success,
+            "error_message": err_q,
+            "form_title": "",
+            "form_date": "",
+            "form_content": "",
         }
     )
+
+
+@app.post("/write", response_class=HTMLResponse)
+async def write_diary_post(
+    request: Request,
+    title: str = Form(...),
+    date: str = Form(...),
+    content: str = Form(...),
+    image: UploadFile | None = File(None),
+):
+    """일기 저장: JSON 반영 + 선택적 이미지를 static/uploads/ 에 저장"""
+    title = (title or "").strip()
+    date = (date or "").strip()
+    content = (content or "").strip()
+
+    if not title or not date or not content:
+        return templates.TemplateResponse(
+            request=request,
+            name="write.html",
+            context={
+                "page_title": "새 일기 작성",
+                "today": datetime.now().date().isoformat(),
+                "error_message": "제목, 날짜, 내용을 모두 입력해주세요.",
+                "form_title": title,
+                "form_date": date,
+                "form_content": content,
+            },
+        )
+
+    if len(content) > 600:
+        return templates.TemplateResponse(
+            request=request,
+            name="write.html",
+            context={
+                "page_title": "새 일기 작성",
+                "today": datetime.now().date().isoformat(),
+                "error_message": "본문은 600자 이내로 입력해주세요.",
+                "form_title": title,
+                "form_date": date,
+                "form_content": content,
+            },
+        )
+
+    image_relpath = ""
+    try:
+        if image is not None and image.filename and image.filename.strip():
+            suffix = Path(image.filename).suffix.lower()
+            if suffix not in ALLOWED_IMAGE_EXT:
+                return templates.TemplateResponse(
+                    request=request,
+                    name="write.html",
+                    context={
+                        "page_title": "새 일기 작성",
+                        "today": datetime.now().date().isoformat(),
+                        "error_message": "이미지는 jpg, jpeg, png, webp 만 업로드할 수 있습니다.",
+                        "form_title": title,
+                        "form_date": date,
+                        "form_content": content,
+                    },
+                )
+            safe_ext = suffix if suffix else ".jpg"
+            unique = f"{uuid.uuid4().hex}{safe_ext}"
+            upload_dir = Path(__file__).resolve().parent / "static" / "uploads"
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            dest = upload_dir / unique
+            with dest.open("wb") as buffer:
+                shutil.copyfileobj(image.file, buffer)
+            image_relpath = f"static/uploads/{unique}"
+
+        add_diary(title=title, content=content, date=date, image_path=image_relpath)
+    except Exception as e:
+        print(f"[ERROR] 일기 저장 실패: {e}")
+        return templates.TemplateResponse(
+            request=request,
+            name="write.html",
+            context={
+                "page_title": "새 일기 작성",
+                "today": datetime.now().date().isoformat(),
+                "error_message": "저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+                "form_title": title,
+                "form_date": date,
+                "form_content": content,
+            },
+        )
+
+    return RedirectResponse(url="/?saved=1", status_code=303)
 
 @app.post("/create-photobook", response_class=HTMLResponse)
 async def create_photobook(request: Request, selected_diaries: str = Form(...)):
