@@ -36,7 +36,7 @@
                             id="diaryDate"
                             name="date"
                             required
-                            value="{{ form_date if form_date else today }}"
+                            value="{% if not success %}{{ form_date if form_date else today }}{% endif %}"
                         >
                     </div>
 
@@ -51,7 +51,7 @@
                             placeholder="예: 벚꽃 산책, 카페에서 보낸 오후..."
                             required
                             maxlength="200"
-                            value="{{ form_title }}"
+                            value="{% if not success %}{{ form_title }}{% endif %}"
                         >
                     </div>
 
@@ -66,7 +66,7 @@
                             maxlength="600"
                             placeholder="오늘 하루는 어떠셨나요? 특별한 순간이나 느낀 점을 자유롭게 적어보세요..."
                             required
-                        >{{ form_content }}</textarea>
+                        >{% if not success %}{{ form_content }}{% endif %}</textarea>
                         <div class="d-flex justify-content-between">
                             <div class="form-text">
                                 포토북 페이지에서 상단 40%는 이미지, 하단 60%는 텍스트 영역으로 사용됩니다.

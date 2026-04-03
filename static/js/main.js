@@ -90,6 +90,10 @@ function initializeCommonFeatures() {
  */
 function initializeHomePage() {
     console.log('홈페이지 초기화 중...');
+
+    if (new URLSearchParams(window.location.search).get('saved') === '1') {
+        clearDiaryDraftStorage();
+    }
     
     // 일기 카드 애니메이션
     animateElements('.card', 'fade-in');
@@ -109,6 +113,10 @@ function initializeHomePage() {
  */
 function initializeWritePage() {
     console.log('일기 작성 페이지 초기화 중...');
+
+    if (new URLSearchParams(window.location.search).has('success')) {
+        clearDiaryDraftStorage();
+    }
     
     // 폼 유효성 검사
     initializeFormValidation();
@@ -365,6 +373,18 @@ function initializeFormValidation() {
             form.classList.add('was-validated');
         });
     });
+}
+
+/**
+ * 일기 작성 폼 자동 저장 초안 (localStorage) 제거 — 저장 성공 후 새 글 작성 시 복원 방지
+ */
+function clearDiaryDraftStorage() {
+    try {
+        localStorage.removeItem('diary_title');
+        localStorage.removeItem('diary_content');
+    } catch (e) {
+        console.warn('일기 초안(localStorage) 삭제 실패:', e);
+    }
 }
 
 /**
