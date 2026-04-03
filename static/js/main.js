@@ -11,6 +11,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 공통 기능 초기화
     initializeCommonFeatures();
+    
+    // 홈페이지인 경우 추가 초기화 (안전장치)
+    if (getCurrentPage() === 'home') {
+        setTimeout(() => {
+            console.log('홈페이지 추가 초기화 체크...');
+            const checkboxes = document.querySelectorAll('.diary-checkbox');
+            if (checkboxes.length > 0 && !updateSelectionInfo) {
+                console.log('일기 선택 기능 재초기화 필요');
+                initializeDiarySelection();
+            }
+        }, 200);
+    }
 });
 
 /**
@@ -84,6 +96,12 @@ function initializeHomePage() {
     
     // 일기 카드 호버 효과
     enhanceDiaryCards();
+    
+    // 일기 선택 기능 초기화 (DOM 로딩 완료 후)
+    setTimeout(() => {
+        console.log('일기 선택 기능 초기화 시작...');
+        initializeDiarySelection();
+    }, 100);
 }
 
 /**
@@ -269,20 +287,32 @@ function initializeAutoSave() {
  */
 function initializeCharacterCounter() {
     const textarea = document.querySelector('#diaryContent');
-    if (textarea) {
-        const counter = document.createElement('div');
-        counter.className = 'text-muted small mt-1';
-        counter.id = 'characterCounter';
-        textarea.parentNode.appendChild(counter);
-        
+    const counter = document.querySelector('#charCount');
+    
+    if (textarea && counter) {
         function updateCounter() {
             const length = textarea.value.length;
-            counter.textContent = `${length.toLocaleString()}자`;
+            const maxLength = 600;
             
-            if (length > 1000) {
+            counter.textContent = length;
+            
+            // 색상 변경
+            if (length > maxLength * 0.9) { // 90% 이상
                 counter.classList.add('text-warning');
-            } else {
+                counter.classList.remove('text-success');
+            } else if (length > maxLength * 0.7) { // 70% 이상
+                counter.classList.add('text-success');
                 counter.classList.remove('text-warning');
+            } else {
+                counter.classList.remove('text-warning', 'text-success');
+            }
+            
+            // 최대 길이 초과 시 경고
+            if (length >= maxLength) {
+                counter.classList.add('text-danger');
+                counter.classList.remove('text-warning', 'text-success');
+            } else {
+                counter.classList.remove('text-danger');
             }
         }
         
@@ -369,6 +399,182 @@ function celebrateSuccess() {
     setTimeout(() => {
         console.log('🎉 포토북 주문이 완료되었습니다!');
     }, 1000);
+}
+
+// 전역 변수로 선택 정보 업데이트 함수 정의
+let updateSelectionInfo;
+
+/**
+ * 일기 선택 기능 초기화
+ */
+function initializeDiarySelection() {
+    console.log('일기 선택 기능 초기화 실행 중...');
+    
+    const checkboxes = document.querySelectorAll('.diary-checkbox');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const deselectAllBtn = document.getElementById('deselectAllBtn');
+    const selectionInfo = document.getElementById('selectionInfo');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    const estimatedPagesSpan = document.getElementById('estimatedPages');
+    const validationMessage = document.getElementById('validationMessage');
+    const createPhotobookBtn = document.getElementById('createPhotobookBtn');
+    const selectedDiariesInput = document.getElementById('selectedDiariesInput');
+    
+    console.log('체크박스 개수:', checkboxes.length);
+    console.log('필수 DOM 요소들 존재 여부:', {
+        selectionInfo: !!selectionInfo,
+        selectedCountSpan: !!selectedCountSpan,
+        estimatedPagesSpan: !!estimatedPagesSpan,
+        validationMessage: !!validationMessage,
+        createPhotobookBtn: !!createPhotobookBtn,
+        selectedDiariesInput: !!selectedDiariesInput
+    });
+    
+    // 필수 요소들이 없으면 초기화 중단
+    if (!selectionInfo || !selectedCountSpan || !estimatedPagesSpan || 
+        !validationMessage || !createPhotobookBtn || !selectedDiariesInput) {
+        console.error('필수 DOM 요소를 찾을 수 없습니다. 초기화를 중단합니다.');
+        return;
+    }
+    
+    // 선택 정보 업데이트 함수 정의
+    updateSelectionInfo = function() {
+        console.log('선택 정보 업데이트 중...');
+        const selectedCheckboxes = document.querySelectorAll('.diary-checkbox:checked');
+        const selectedCount = selectedCheckboxes.length;
+        const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+        
+        console.log('선택된 체크박스 수:', selectedCount);
+        console.log('선택된 ID들:', selectedIds);
+        
+        // 페이지 수 계산
+        const totalPages = calculatePages(selectedCount);
+        
+        // 검증 결과
+        const validation = validateDiarySelection(selectedCount);
+        
+        // UI 업데이트
+        if (selectedCount > 0) {
+            selectionInfo.style.display = 'block';
+            selectedCountSpan.textContent = selectedCount;
+            estimatedPagesSpan.textContent = totalPages;
+            selectedDiariesInput.value = selectedIds.join(',');
+            
+            console.log('Hidden input에 설정된 값:', selectedDiariesInput.value);
+            
+            // 검증 메시지 표시
+            validationMessage.innerHTML = validation.message;
+            validationMessage.className = `small mb-2 ${validation.valid ? 'text-success' : 'text-danger'}`;
+            
+            // 버튼 상태
+            createPhotobookBtn.disabled = !validation.valid;
+            
+            // 선택된 카드 강조
+            updateCardSelection(selectedIds);
+        } else {
+            selectionInfo.style.display = 'none';
+            selectedDiariesInput.value = '';
+            createPhotobookBtn.disabled = true;
+            updateCardSelection([]);
+        }
+    };
+    
+    // 카드 선택 상태 시각적 표시
+    function updateCardSelection(selectedIds) {
+        const diaryCards = document.querySelectorAll('.diary-card');
+        diaryCards.forEach(card => {
+            const diaryId = card.dataset.diaryId;
+            if (selectedIds.includes(diaryId)) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        });
+    }
+    
+    // 체크박스 변경 이벤트 등록
+    checkboxes.forEach((checkbox, index) => {
+        checkbox.addEventListener('change', updateSelectionInfo);
+        console.log(`체크박스 ${index + 1} 이벤트 리스너 등록됨`);
+    });
+    
+    // 전체 선택 버튼
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', function() {
+            console.log('전체 선택 버튼 클릭됨');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            updateSelectionInfo();
+        });
+    }
+    
+    // 전체 해제 버튼
+    if (deselectAllBtn) {
+        deselectAllBtn.addEventListener('click', function() {
+            console.log('전체 해제 버튼 클릭됨');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateSelectionInfo();
+        });
+    }
+    
+    // 초기 상태 설정
+    updateSelectionInfo();
+    console.log('일기 선택 기능 초기화 완료');
+}
+
+/**
+ * 페이지 수 계산
+ */
+function calculatePages(selectedCount) {
+    // 총 페이지 = 표지(2페이지) + 선택한 일기 수
+    let totalPages = 2 + selectedCount;
+    
+    // 2페이지 단위로 올림
+    if (totalPages % 2 !== 0) {
+        totalPages += 1;
+    }
+    
+    return totalPages;
+}
+
+/**
+ * 일기 선택 검증
+ */
+function validateDiarySelection(selectedCount) {
+    const minDiaries = 22;
+    const maxDiaries = 128;
+    const recommendedMin = 30;
+    const recommendedMax = 50;
+    
+    if (selectedCount < minDiaries) {
+        return {
+            valid: false,
+            message: `<i class="bi bi-exclamation-triangle"></i> 최소 ${minDiaries}개 일기를 선택해주세요. (현재: ${selectedCount}개)`
+        };
+    }
+    
+    if (selectedCount > maxDiaries) {
+        return {
+            valid: false,
+            message: `<i class="bi bi-exclamation-triangle"></i> 최대 ${maxDiaries}개까지 선택 가능합니다. (현재: ${selectedCount}개)`
+        };
+    }
+    
+    // 권장 범위 체크
+    if (selectedCount >= recommendedMin && selectedCount <= recommendedMax) {
+        return {
+            valid: true,
+            message: `<i class="bi bi-check-circle"></i> 권장 범위입니다! (${selectedCount}개 선택)`
+        };
+    }
+    
+    return {
+        valid: true,
+        message: `<i class="bi bi-info-circle"></i> 선택 완료 (권장: ${recommendedMin}~${recommendedMax}개)`
+    };
 }
 
 /**

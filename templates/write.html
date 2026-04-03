@@ -46,12 +46,18 @@
                             class="form-control" 
                             id="diaryContent" 
                             name="content" 
-                            rows="8" 
+                            rows="10" 
+                            maxlength="600"
                             placeholder="오늘 하루는 어떠셨나요? 특별한 순간이나 느낀 점을 자유롭게 적어보세요..."
                             required
                         ></textarea>
-                        <div class="form-text">
-                            이 내용은 포토북에 포함됩니다. 마음을 담아 작성해보세요.
+                        <div class="d-flex justify-content-between">
+                            <div class="form-text">
+                                포토북 페이지에서 상단 40%는 이미지, 하단 60%는 텍스트 영역으로 사용됩니다.
+                            </div>
+                            <div class="form-text">
+                                <span id="charCount">0</span> / 600자
+                            </div>
                         </div>
                     </div>
 
@@ -68,6 +74,7 @@
                         >
                         <div class="form-text text-muted">
                             <i class="bi bi-info-circle"></i> 
+                            포토북에서 이미지는 가로형 직사각형으로 자동 조정됩니다. 
                             사진 업로드 기능은 추후 구현 예정입니다.
                         </div>
                     </div>

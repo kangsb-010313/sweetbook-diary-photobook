@@ -18,10 +18,62 @@
 
         <!-- 일기 목록이 있는 경우 -->
         {% if diaries %}
+        
+        <!-- 포토북 제작 안내 -->
+        <div class="alert alert-info mb-4">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h5 class="alert-heading mb-2">📖 포토북 제작 가이드</h5>
+                    <p class="mb-0">
+                        <strong>최소 22개 ~ 최대 128개</strong> 일기를 선택하세요. 
+                        <span class="text-muted">(권장: 30~50개)</span>
+                    </p>
+                </div>
+                <div class="col-md-4 text-md-end mt-2 mt-md-0">
+                    <button type="button" class="btn btn-outline-primary btn-sm me-2" id="selectAllBtn">
+                        전체 선택
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="deselectAllBtn">
+                        전체 해제
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 선택 정보 표시 -->
+        <div class="card mb-4" id="selectionInfo" style="display: none;">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h6 class="mb-1">선택된 일기: <span id="selectedCount">0</span>개</h6>
+                        <small class="text-muted">예상 페이지: <span id="estimatedPages">0</span>페이지</small>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <div id="validationMessage" class="small mb-2"></div>
+                        <form method="post" action="/create-photobook" id="photobookForm">
+                            <input type="hidden" name="selected_diaries" id="selectedDiariesInput">
+                            <button type="submit" class="btn btn-success" id="createPhotobookBtn" disabled>
+                                <i class="bi bi-book"></i> 선택한 일기로 포토북 만들기
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="row">
             {% for diary in diaries %}
             <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card h-100 shadow-sm">
+                <div class="card h-100 shadow-sm diary-card" data-diary-id="{{ diary.id }}">
+                    <div class="card-header bg-transparent border-0 p-3 pb-0">
+                        <div class="form-check">
+                            <input class="form-check-input diary-checkbox" type="checkbox" value="{{ diary.id }}" id="diary{{ diary.id }}">
+                            <label class="form-check-label fw-bold" for="diary{{ diary.id }}">
+                                선택
+                            </label>
+                        </div>
+                    </div>
+                    
                     {% if diary.image_path %}
                     <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
                         <i class="bi bi-image text-muted" style="font-size: 3rem;"></i>
@@ -36,32 +88,14 @@
                         </div>
                         
                         <p class="card-text text-muted">
-                            {{ diary.content[:100] }}{% if diary.content|length > 100 %}...{% endif %}
+                            {{ diary.content[:120] }}{% if diary.content|length > 120 %}...{% endif %}
                         </p>
                         
-                        <div class="d-flex gap-2">
-                            <a href="/preview" class="btn btn-outline-primary btn-sm">
-                                포토북 만들기
-                            </a>
-                            <a href="/write" class="btn btn-outline-secondary btn-sm">
-                                수정하기
-                            </a>
-                        </div>
+                        <small class="text-muted">{{ diary.content|length }}자</small>
                     </div>
                 </div>
             </div>
             {% endfor %}
-        </div>
-
-        <!-- 포토북 만들기 안내 -->
-        <div class="text-center mt-5 p-4 bg-light rounded">
-            <h3 class="h4 mb-3">포토북으로 만들어보세요!</h3>
-            <p class="text-muted mb-3">
-                작성한 일기들을 선택하여 나만의 특별한 포토북을 제작할 수 있습니다.
-            </p>
-            <a href="/preview" class="btn btn-success btn-lg">
-                <i class="bi bi-book"></i> 포토북 미리보기
-            </a>
         </div>
 
         {% else %}
