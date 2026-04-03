@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from utils.data_manager import get_diaries, load_dummy_data
 from utils.book_api import (
     get_book_templates, estimate_book_cost, validate_diary_selection, get_photobook_specs,
-    create_book_with_diaries, get_book_estimate, create_book_order
+    create_book_with_diaries, create_book_order
 )
 from datetime import datetime
 
@@ -120,23 +120,10 @@ async def preview_photobook(request: Request, selected: str = None, error: str =
         validation = validate_diary_selection(selected_count)
         specs = get_photobook_specs()
         templates_list = get_book_templates()
-        
-        # 실제 포토북 생성 및 견적 조회 시도
-        print(f"[DEBUG] 실제 포토북 생성 시도 - 선택된 일기 수: {selected_count}")
-        book_success, book_result = create_book_with_diaries(selected_diaries_data)
-        
-        if book_success and "book_id" in book_result:
-            # 실제 견적 조회
-            print(f"[DEBUG] 견적 조회 시도 - Book ID: {book_result['book_id']}")
-            estimate_success, cost_info = get_book_estimate(book_result["book_id"])
-            
-            if not estimate_success:
-                print(f"[WARNING] 견적 조회 실패, 임시 추정 사용: {cost_info}")
-                cost_info = estimate_book_cost(selected_count)
-        else:
-            # 포토북 생성 실패 시 임시 추정 사용
-            print(f"[WARNING] 포토북 생성 실패, 임시 추정 사용: {book_result}")
-            cost_info = estimate_book_cost(selected_count)
+
+        # 미리보기는 JSON 렌더링만. BookPrint 책/견적은 "제작 요청" 시 한 번에 수행.
+        print(f"[DEBUG] Preview 비용 표시: 로컬 추정만 사용 (선택 일기 수: {selected_count})")
+        cost_info = estimate_book_cost(selected_count)
         
         # 상태 메시지 생성
         status_info = {
@@ -237,13 +224,23 @@ async def create_order(request: Request,
         
         book_id = book_result["book_id"]
         print(f"[DEBUG] 포토북 생성 완료 - Book ID: {book_id}")
-        
+
+        if not book_result.get("finalize_attempted"):
+            err = "책이 최종 확정(FINALIZED)되지 않아 주문할 수 없습니다."
+            print(f"[ERROR] {err}")
+            return RedirectResponse(
+                url=f"/preview?selected={selected_diaries}&error={err}",
+                status_code=303,
+            )
+
         # TODO: 실제 서비스에서는 사용자 입력 폼에서 배송 정보를 받아야 함
         shipping_info = {
             "name": "테스트 사용자",
-            "address": "서울시 테스트구 테스트동 123-45", 
-            "phone": "010-0000-0000",
-            "email": "test@example.com"
+            "address": "서울특별시 강남구 테헤란로 123",
+            "address2": "4층",
+            "phone": "010-1234-5678",
+            "postalCode": "06100",
+            "memo": "부재 시 경비실",
         }
         
         # 실제 주문 생성

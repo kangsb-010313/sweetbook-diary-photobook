@@ -4,20 +4,32 @@ BookPrint API 연동 모듈
 """
 
 import os
+import time
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from dotenv import load_dotenv
 
 # BookPrint API SDK import
 try:
-    from bookprintapi import Client
+    from bookprintapi import Client, ApiError
     SDK_AVAILABLE = True
 except ImportError:
     print("[WARNING] BookPrint API SDK를 찾을 수 없습니다.")
     SDK_AVAILABLE = False
+    ApiError = Exception  # type: ignore
 
 # 환경변수 로드
 load_dotenv()
+
+# 프로젝트 루트 (static/... 이미지 경로 해석용)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# SDK 예제 examples/server_pipeline.py 과 동일 — SQUAREBOOK_HC 일기장A 템플릿 UID
+TPL_COVER = "79yjMH3qRPly"
+TPL_GANJI = "5M3oo7GlWKGO"
+TPL_NAEJI = "5B4ds6i0Rywx"
+TPL_PUBLISH = "5nhOVBjTnIVE"
+TPL_BLANK = "2mi1ao0Z4Vxl"
 
 def get_api_client() -> Optional[Client]:
     """
@@ -45,208 +57,225 @@ def get_api_client() -> Optional[Client]:
         print(f"[ERROR] BookPrint API 클라이언트 초기화 실패: {e}")
         return None
 
-def create_book_with_diaries(selected_diaries: List[Dict[str, Any]], 
-                           template_id: str = "template_001") -> Tuple[bool, Dict[str, Any]]:
+def _static_path_to_absolute(rel: Optional[str]) -> Optional[str]:
+    """dummy_data의 image_path(프로젝트 기준 상대경로) → 절대경로. 파일 없으면 None."""
+    if not rel:
+        return None
+    p = os.path.normpath(os.path.join(PROJECT_ROOT, rel.replace("/", os.sep)))
+    return p if os.path.isfile(p) else None
+
+
+def _diary_month_day(date_str: str) -> Tuple[str, str]:
+    parts = (date_str or "").strip().split("-")
+    if len(parts) >= 3:
+        return str(int(parts[1])), str(int(parts[2]))
+    return "1", "1"
+
+
+def _ganji_meta(date_str: str) -> Dict[str, str]:
+    parts = (date_str or "2026-01-01").split("-")
+    year = parts[0] if parts else "2026"
+    month = int(parts[1]) if len(parts) > 1 else 1
+    season = "봄"
+    if month in (12, 1, 2):
+        season = "겨울"
+    elif month in (3, 4, 5):
+        season = "봄"
+    elif month in (6, 7, 8):
+        season = "여름"
+    elif month in (9, 10, 11):
+        season = "가을"
+    return {
+        "year": year,
+        "monthTitle": f"{month}월",
+        "chapterNum": "1",
+        "season_title": season,
+    }
+
+
+def _ensure_cover_photo_path(selected_diaries: List[Dict[str, Any]]) -> str:
+    """표지용 로컬 JPEG 경로. 일기 이미지가 없으면 PIL로 임시 파일 생성."""
+    for d in selected_diaries:
+        ap = _static_path_to_absolute(d.get("image_path"))
+        if ap:
+            print(f"[DEBUG] 표지용 사진: 기존 파일 사용 {ap}")
+            return ap
+    from PIL import Image
+    import tempfile
+    img = Image.new("RGB", (800, 600), color=(240, 248, 255))
+    fd, tmp_path = tempfile.mkstemp(suffix=".jpg")
+    os.close(fd)
+    img.save(tmp_path, "JPEG", quality=85)
+    print(f"[DEBUG] 표지용 사진: 임시 JPEG 생성 {tmp_path}")
+    return tmp_path
+
+
+def _insert_diary_book_content(
+    client: Client,
+    book_uid: str,
+    selected_diaries: List[Dict[str, Any]],
+    book_title: str,
+) -> None:
+    """photos.upload → covers.create → contents.insert(간지/내지/발행). SDK 예제와 동일 흐름."""
+    cover_path = _ensure_cover_photo_path(selected_diaries)
+    upload_resp = client.photos.upload(book_uid, cover_path)
+    print(f"[DEBUG] photos.upload response: {upload_resp}")
+    photo_name = upload_resp.get("data", {}).get("fileName")
+    if not photo_name:
+        raise RuntimeError(f"photos.upload 응답에 fileName 없음: {upload_resp}")
+
+    start_date = selected_diaries[0].get("date", "") if selected_diaries else ""
+    end_date = selected_diaries[-1].get("date", "") if selected_diaries else start_date
+    date_range = f"{start_date} ~ {end_date}".replace("-", ".")[:120]
+
+    cover_resp = client.covers.create(
+        book_uid,
+        template_uid=TPL_COVER,
+        parameters={
+            "title": book_title[:80],
+            "dateRange": date_range,
+            "coverPhoto": photo_name,
+        },
+    )
+    print(f"[DEBUG] covers.create response: {cover_resp}")
+    time.sleep(0.15)
+
+    first_date = selected_diaries[0].get("date", "2026-01-01") if selected_diaries else "2026-01-01"
+    ins_g = client.contents.insert(
+        book_uid,
+        template_uid=TPL_GANJI,
+        parameters=_ganji_meta(first_date),
+    )
+    print(f"[DEBUG] contents.insert (GANJI) response: {ins_g}")
+    time.sleep(0.15)
+
+    for i, diary in enumerate(selected_diaries):
+        m, dday = _diary_month_day(diary.get("date", ""))
+        body = ((diary.get("title") or "") + "\n\n" + (diary.get("content") or "")).strip()[:3500]
+        ins = client.contents.insert(
+            book_uid,
+            template_uid=TPL_NAEJI,
+            parameters={"monthNum": m, "dayNum": dday, "diaryText": body},
+        )
+        print(f"[DEBUG] contents.insert (NAEJI {i + 1}/{len(selected_diaries)}) response: {ins}")
+        time.sleep(0.05)
+
+    pub_date = datetime.now().strftime("%Y.%m.%d")
+    ins_p = client.contents.insert(
+        book_uid,
+        template_uid=TPL_PUBLISH,
+        parameters={
+            "title": book_title[:80],
+            "publishDate": pub_date,
+            "author": "일기 포토북",
+        },
+    )
+    print(f"[DEBUG] contents.insert (PUBLISH) response: {ins_p}")
+    time.sleep(0.15)
+
+
+def _finalize_book_with_min_pages(client: Client, book_uid: str) -> dict:
+    """finalize 성공할 때까지 최소 페이지 미달 시 빈 내지 추가 (SDK 예제와 동일 패턴)."""
+    last_err: Optional[ApiError] = None
+    for attempt in range(30):
+        try:
+            fin = client.books.finalize(book_uid)
+            print(f"[DEBUG] books.finalize response: {fin}")
+            if not fin or not fin.get("success"):
+                msg = (fin or {}).get("message", "finalize 응답 실패")
+                raise RuntimeError(msg)
+            return fin
+        except ApiError as e:
+            last_err = e
+            print(f"[ERROR] books.finalize ApiError status_code: {getattr(e, 'status_code', None)}")
+            print(f"[ERROR] books.finalize ApiError details: {getattr(e, 'details', None)}")
+            print(f"[ERROR] books.finalize raw response: {getattr(e, 'response', None)}")
+            detail_text = ""
+            if e.details:
+                detail_text = (
+                    " ".join(str(x) for x in e.details)
+                    if isinstance(e.details, (list, tuple))
+                    else str(e.details)
+                )
+            if "최소 페이지" in detail_text:
+                print(f"[INFO] 최소 페이지 부족 — 빈 내지 4p 추가 후 재시도 ({attempt + 1})")
+                for _ in range(4):
+                    br = client.contents.insert(book_uid, template_uid=TPL_BLANK, break_before="page")
+                    print(f"[DEBUG] contents.insert (BLANK) response: {br}")
+                    time.sleep(0.05)
+                continue
+            raise
+    if last_err:
+        raise last_err
+    raise RuntimeError("books.finalize 실패: 반복 한도 초과")
+
+
+def create_book_with_diaries(
+    selected_diaries: List[Dict[str, Any]],
+    template_id: str = "template_001",
+) -> Tuple[bool, Dict[str, Any]]:
     """
-    선택된 일기들로 실제 포토북을 생성합니다.
-    
-    Args:
-        selected_diaries: 선택된 일기 데이터 리스트
-        template_id: 선택된 템플릿 ID
-        
-    Returns:
-        (성공 여부, 결과 데이터)
+    선택된 일기로 BookPrint 책 생성 → 표지/내지 삽입 → finalize 까지 수행.
+    finalize 실패 시 성공으로 반환하지 않음 (주문/견적 금지).
     """
     client = get_api_client()
     if not client:
         return False, {"error": "API 클라이언트 초기화 실패"}
-    
+
+    book_title = f"나의 일기 포토북 ({len(selected_diaries)}개 일기)"
+    book_create_params = {
+        "book_spec_uid": "SQUAREBOOK_HC",
+        "title": book_title,
+        "creation_type": "TEST",
+        "external_ref": f"diary_photobook_{len(selected_diaries)}_entries"[:100],
+    }
+
     try:
         print(f"[INFO] 포토북 생성 시작 - 일기 수: {len(selected_diaries)}")
-        
-        # 1. 책 생성 (현재는 기본 생성만 지원)
-        book_title = f"나의 일기 포토북 ({len(selected_diaries)}개 일기)"
-        book_create_params = {
-            "book_spec_uid": "SQUAREBOOK_HC",
-            "title": book_title,
-            "creation_type": "TEST",  # 테스트 환경이므로 TEST 모드
-            "external_ref": f"diary_photobook_{len(selected_diaries)}_entries"
-        }
-        
         print(f"[DEBUG] books.create params: {book_create_params}")
-        print(f"[DEBUG] 책 생성 파라미터 검증:")
-        print(f"  - book_spec_uid: {book_create_params['book_spec_uid']}")
-        print(f"  - creation_type: {book_create_params['creation_type']}")
-        print(f"  - title 길이: {len(book_create_params['title'])}")
-        print(f"  - external_ref: {book_create_params['external_ref']}")
-        
+
         book_response = client.books.create(**book_create_params)
         print(f"[DEBUG] books.create response: {book_response}")
-        
-        if not book_response or not book_response.get('success') or 'data' not in book_response:
-            error_msg = book_response.get('message', '알 수 없는 오류') if book_response else '응답 없음'
+
+        if not book_response or not book_response.get("success") or "data" not in book_response:
+            error_msg = book_response.get("message", "알 수 없는 오류") if book_response else "응답 없음"
             print(f"[ERROR] books.create 실패 - 전체 응답: {book_response}")
-            print(f"[ERROR] books.create 사용 파라미터: {book_create_params}")
             return False, {"error": f"책 생성 실패: {error_msg}"}
-        
-        book_id = book_response['data']['bookUid']
-        print(f"[INFO] 책 생성 완료 - Book ID: {book_id}")
-        
-        # 2. 책 완성 처리 (선택적 - 콘텐츠 삽입 기능이 없으므로 생략 가능)
-        # TODO: 실제 서비스에서는 콘텐츠 삽입 API가 추가되면 여기에 구현
-        print("[INFO] 콘텐츠 삽입 기능은 현재 SDK에서 지원하지 않음")
-        print("[INFO] 책 생성만 완료된 상태로 진행 (완성 처리는 견적 조회 시 필요하면 시도)")
-        
-        # 완성 처리는 선택적으로 시도 (실패해도 책 생성 자체는 성공으로 처리)
-        finalize_attempted = False
-        try:
-            print(f"[DEBUG] books.finalize 시도 - Book ID: {book_id}")
-            finalize_response = client.books.finalize(book_id)
-            print(f"[DEBUG] books.finalize response: {finalize_response}")
-            
-            if finalize_response and finalize_response.get('success'):
-                print(f"[INFO] 책 완성 처리 완료 - Book ID: {book_id}")
-                finalize_attempted = True
-            else:
-                error_msg = finalize_response.get('message', '알 수 없는 오류') if finalize_response else '응답 없음'
-                print(f"[WARNING] 책 완성 처리 실패하지만 계속 진행: {error_msg}")
-                print(f"[WARNING] finalize 실패 응답: {finalize_response}")
-        except Exception as finalize_error:
-            print(f"[WARNING] 책 완성 처리 중 오류하지만 계속 진행: {finalize_error}")
-            print(f"[WARNING] finalize 오류 타입: {type(finalize_error).__name__}")
-            
-            # ApiError인 경우 상세 정보 출력
-            if hasattr(finalize_error, 'status_code'):
-                print(f"[WARNING] finalize ApiError status_code: {finalize_error.status_code}")
-            if hasattr(finalize_error, 'details'):
-                print(f"[WARNING] finalize ApiError details: {finalize_error.details}")
-            if hasattr(finalize_error, 'response'):
-                print(f"[WARNING] finalize raw response: {finalize_error.response}")
-        
-        print(f"[INFO] 포토북 생성 완료 - Book ID: {book_id}")
-        
+
+        book_id = book_response["data"]["bookUid"]
+        print(f"[INFO] 책 생성 완료 - bookUid: {book_id}")
+
+        _insert_diary_book_content(client, book_id, selected_diaries, book_title)
+
+        finalize_response = _finalize_book_with_min_pages(client, book_id)
+        page_count_api = finalize_response.get("data", {}).get("pageCount")
+        page_count = int(page_count_api) if page_count_api is not None else calculate_page_count(len(selected_diaries))
+
         return True, {
             "book_id": book_id,
             "title": book_title,
-            "page_count": calculate_page_count(len(selected_diaries)),
+            "page_count": page_count,
             "diary_count": len(selected_diaries),
             "template_id": template_id,
             "created_at": datetime.now().isoformat(),
-            "status": "FINALIZED" if finalize_attempted else "CREATED",
-            "finalize_attempted": finalize_attempted
+            "status": "FINALIZED",
+            "finalize_attempted": True,
+            "finalize_response": finalize_response,
         }
-        
+
+    except ApiError as e:
+        print(f"[ERROR] 포토북 생성 ApiError status_code: {getattr(e, 'status_code', None)}")
+        print(f"[ERROR] 포토북 생성 ApiError details: {getattr(e, 'details', None)}")
+        print(f"[ERROR] 포토북 생성 ApiError raw response: {getattr(e, 'response', None)}")
+        user_error_msg = str(e)
+        if getattr(e, "details", None):
+            user_error_msg = f"{user_error_msg} - {e.details}"
+        return False, {"error": f"포토북 생성 실패: {user_error_msg}"}
+
     except Exception as e:
         print(f"[ERROR] 포토북 생성 중 오류: {e}")
         print(f"[ERROR] 포토북 생성 오류 타입: {type(e).__name__}")
-        
-        # ApiError인 경우 상세 정보 출력
-        if hasattr(e, 'status_code'):
-            print(f"[ERROR] books.create ApiError status_code: {e.status_code}")
-        if hasattr(e, 'details'):
-            print(f"[ERROR] books.create ApiError details: {e.details}")
-        if hasattr(e, 'response'):
-            print(f"[ERROR] books.create raw response: {e.response}")
-            
-        # 사용자 친화적 에러 메시지 생성
-        user_error_msg = str(e)
-        if hasattr(e, 'details') and e.details:
-            user_error_msg = f"{str(e)} - {e.details}"
-            
-        return False, {"error": f"포토북 생성 실패: {user_error_msg}"}
-
-def add_cover_page(client: Client, book_id: str, selected_diaries: List[Dict[str, Any]]) -> bool:
-    """
-    표지 페이지를 추가합니다.
-    
-    Args:
-        client: BookPrint API 클라이언트
-        book_id: 책 ID
-        selected_diaries: 선택된 일기 데이터
-        
-    Returns:
-        성공 여부
-    """
-    try:
-        # 첫 번째와 마지막 일기의 날짜로 기간 표시
-        start_date = selected_diaries[0]['date'] if selected_diaries else "2026-01-01"
-        end_date = selected_diaries[-1]['date'] if selected_diaries else "2026-12-31"
-        
-        cover_content = f"""나의 일기 포토북
-
-{start_date} ~ {end_date}
-
-{len(selected_diaries)}개의 소중한 기록"""
-        
-        # 표지 페이지 삽입
-        cover_response = client.books.insert_content(
-            book_id=book_id,
-            page_number=1,
-            content_type="text",
-            content=cover_content,
-            layout="cover"
-        )
-        
-        print(f"[INFO] 표지 페이지 추가 완료")
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] 표지 페이지 추가 실패: {e}")
-        return False
-
-def add_diary_content_pages(client: Client, book_id: str, selected_diaries: List[Dict[str, Any]]) -> bool:
-    """
-    일기 콘텐츠 페이지들을 추가합니다.
-    
-    Args:
-        client: BookPrint API 클라이언트
-        book_id: 책 ID
-        selected_diaries: 선택된 일기 데이터
-        
-    Returns:
-        성공 여부
-    """
-    try:
-        for index, diary in enumerate(selected_diaries):
-            page_number = index + 2  # 표지 다음부터
-            
-            # 일기 내용 구성 (40% 이미지 영역, 60% 텍스트 영역 고려)
-            diary_content = f"""{diary['title']}
-
-{diary['date']}
-
-{diary['content']}"""
-            
-            # 일기 페이지 삽입
-            content_response = client.books.insert_content(
-                book_id=book_id,
-                page_number=page_number,
-                content_type="text",
-                content=diary_content,
-                layout="diary_page"
-            )
-            
-            # 이미지가 있는 경우 이미지도 삽입 시도
-            if diary.get('image_path'):
-                try:
-                    image_response = client.books.insert_content(
-                        book_id=book_id,
-                        page_number=page_number,
-                        content_type="image",
-                        content=diary['image_path'],
-                        layout="diary_image"
-                    )
-                    print(f"[INFO] 일기 {index+1} 이미지 추가 완료")
-                except Exception as img_error:
-                    print(f"[WARNING] 일기 {index+1} 이미지 추가 실패: {img_error}")
-            
-            print(f"[INFO] 일기 {index+1}/{len(selected_diaries)} 페이지 추가 완료")
-        
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] 일기 콘텐츠 페이지 추가 실패: {e}")
-        return False
+        return False, {"error": f"포토북 생성 실패: {str(e)}"}
 
 def get_book_estimate(book_id: str) -> Tuple[bool, Dict[str, Any]]:
     """
@@ -264,49 +293,52 @@ def get_book_estimate(book_id: str) -> Tuple[bool, Dict[str, Any]]:
     
     try:
         print(f"[INFO] 견적 조회 시작 - Book ID: {book_id}")
-        
-        # 주문 견적 조회 (올바른 파라미터 구조 사용)
-        estimate_response = client.orders.estimate(items=[{"bookUid": book_id, "quantity": 1}])
-        
-        if not estimate_response or not estimate_response.get('success'):
-            error_msg = estimate_response.get('message', '알 수 없는 오류') if estimate_response else '응답 없음'
+        items_arg = [{"bookUid": book_id, "quantity": 1}]
+        print(f"[DEBUG] orders.estimate params: {items_arg}")
+        estimate_response = client.orders.estimate(items_arg)
+        print(f"[DEBUG] orders.estimate response: {estimate_response}")
+
+        if not estimate_response or not estimate_response.get("success"):
+            error_msg = estimate_response.get("message", "알 수 없는 오류") if estimate_response else "응답 없음"
+            print(f"[ERROR] 견적 조회 실패 응답: {estimate_response}")
             return False, {"error": f"견적 조회 실패: {error_msg}"}
-        
-        print(f"[INFO] 견적 조회 완료: {estimate_response}")
-        
-        # 견적 데이터 추출 (API 응답 구조에 맞게)
-        estimate_data_raw = estimate_response.get('data', {})
-        
-        # 견적 데이터 정리
+
+        estimate_data_raw = estimate_response.get("data", {})
+        paid = estimate_data_raw.get("paidCreditAmount")
+        total_price = int(paid) if paid is not None else int(
+            estimate_data_raw.get("totalPrice")
+            or estimate_data_raw.get("total_price")
+            or 0
+        )
+
         estimate_data = {
             "book_id": book_id,
-            "book_spec_uid": estimate_data_raw.get("book_spec_uid", "SQUAREBOOK_HC"),
-            "page_count": estimate_data_raw.get("page_count", 0),
-            "book_price": estimate_data_raw.get("book_price", 0),
-            "shipping_fee": estimate_data_raw.get("shipping_fee", 0),
-            "vat_amount": estimate_data_raw.get("vat_amount", 0),
-            "vat_included": estimate_data_raw.get("vat_included", True),
-            "total_price": estimate_data_raw.get("total_price", 0),
+            "book_spec_uid": estimate_data_raw.get("bookSpecUid", estimate_data_raw.get("book_spec_uid", "SQUAREBOOK_HC")),
+            "page_count": estimate_data_raw.get("pageCount", estimate_data_raw.get("page_count", 0)),
+            "book_price": estimate_data_raw.get("bookPrice", estimate_data_raw.get("book_price", 0)),
+            "shipping_fee": estimate_data_raw.get("shippingFee", estimate_data_raw.get("shipping_fee", 0)),
+            "vat_amount": estimate_data_raw.get("vatAmount", estimate_data_raw.get("vat_amount", 0)),
+            "vat_included": True,
+            "total_price": total_price,
             "currency": estimate_data_raw.get("currency", "KRW"),
-            "is_estimate": False,  # 실제 API 결과
-            "estimate_note": "실제 BookPrint API에서 계산된 정확한 비용입니다.",
-            "price_breakdown": format_price_breakdown(estimate_data_raw)
+            "credit_sufficient": estimate_data_raw.get("creditSufficient", True),
+            "is_estimate": False,
+            "estimate_note": "실제 BookPrint API orders.estimate 결과입니다.",
+            "price_breakdown": format_price_breakdown(estimate_data_raw),
+            "_raw_estimate": estimate_data_raw,
         }
-        
+
         return True, estimate_data
-        
+
+    except ApiError as e:
+        print(f"[ERROR] 견적 조회 ApiError status_code: {getattr(e, 'status_code', None)}")
+        print(f"[ERROR] 견적 조회 ApiError details: {getattr(e, 'details', None)}")
+        print(f"[ERROR] 견적 조회 ApiError raw response: {getattr(e, 'response', None)}")
+        return False, {"error": f"견적 조회 실패: {str(e)} - {getattr(e, 'details', '')}"}
+
     except Exception as e:
         print(f"[ERROR] 견적 조회 중 오류: {e}")
-        print(f"[INFO] 실제 API 견적 조회 실패, 로컬 추정 비용으로 fallback")
-        
-        # Fallback: 로컬 추정 비용 사용
-        from utils.book_api import estimate_book_cost
-        page_count = calculate_page_count(2)  # 기본 2개 일기로 추정
-        fallback_estimate = estimate_book_cost(2)
-        fallback_estimate["book_id"] = book_id
-        fallback_estimate["estimate_note"] = f"실제 API 견적 조회 실패로 인한 임시 추정 비용 (오류: {str(e)})"
-        
-        return True, fallback_estimate
+        return False, {"error": f"견적 조회 실패: {str(e)}"}
 
 def format_price_breakdown(estimate_response: Dict[str, Any]) -> Dict[str, str]:
     """
@@ -320,17 +352,19 @@ def format_price_breakdown(estimate_response: Dict[str, Any]) -> Dict[str, str]:
     """
     try:
         breakdown = {}
-        
-        if "book_price" in estimate_response:
-            breakdown["도서 제작비"] = f"{estimate_response['book_price']:,}원"
-        
-        if "shipping_fee" in estimate_response:
-            breakdown["배송비"] = f"{estimate_response['shipping_fee']:,}원"
-        
-        if "vat_amount" in estimate_response:
-            vat_rate = estimate_response.get("vat_rate", 10)
-            breakdown[f"부가세 ({vat_rate}%)"] = f"{estimate_response['vat_amount']:,}원"
-        
+        bp = estimate_response.get("bookPrice", estimate_response.get("book_price"))
+        if bp is not None:
+            breakdown["도서 제작비"] = f"{int(bp):,}원"
+        sf = estimate_response.get("shippingFee", estimate_response.get("shipping_fee"))
+        if sf is not None:
+            breakdown["배송비"] = f"{int(sf):,}원"
+        va = estimate_response.get("vatAmount", estimate_response.get("vat_amount"))
+        if va is not None:
+            vat_rate = estimate_response.get("vatRate", estimate_response.get("vat_rate", 10))
+            breakdown[f"부가세 ({vat_rate}%)"] = f"{int(va):,}원"
+        paid = estimate_response.get("paidCreditAmount")
+        if paid is not None:
+            breakdown["결제(충전금)"] = f"{int(paid):,}원"
         return breakdown
         
     except Exception as e:
@@ -351,22 +385,22 @@ def create_book_order(book_id: str, shipping_info: Dict[str, Any]) -> Tuple[bool
     client = get_api_client()
     if not client:
         return False, {"error": "API 클라이언트 초기화 실패"}
-    
+
+    order_params = None
     try:
         print(f"[INFO] 주문 생성 시작 - Book ID: {book_id}")
-        
-        # 주문 생성 (SDK 스펙에 맞는 파라미터 구조 사용)
+
         order_params = {
             "items": [{"bookUid": book_id, "quantity": 1}],
             "shipping": {
                 "recipientName": shipping_info.get("name", "테스트 사용자"),
                 "recipientPhone": shipping_info.get("phone", "010-0000-0000"),
-                "postalCode": "12345",  # TODO: 실제 우편번호 필요
-                "address1": shipping_info.get("address", "서울시 테스트구 테스트동 123-45"),
-                "address2": "",  # 상세주소 (선택사항)
-                "memo": "포토북 배송 - 조심히 다뤄주세요"  # 배송 메모 (선택사항)
+                "postalCode": shipping_info.get("postalCode", "06100"),
+                "address1": shipping_info.get("address", "서울특별시 강남구 테헤란로 123"),
+                "address2": shipping_info.get("address2", ""),
+                "memo": shipping_info.get("memo", "포토북 배송"),
             },
-            "external_ref": f"diary_photobook_{book_id[:8]}"  # 외부 참조 ID
+            "external_ref": f"diary_photobook_{book_id[:8]}"[:100],
         }
         
         print(f"[DEBUG] 주문 생성 파라미터: {order_params}")
@@ -377,8 +411,7 @@ def create_book_order(book_id: str, shipping_info: Dict[str, Any]) -> Tuple[bool
         print(f"  - external_ref: {order_params['external_ref']}")
         
         order_response = client.orders.create(**order_params)
-        
-        print(f"[DEBUG] 주문 생성 API 응답: {order_response}")
+        print(f"[DEBUG] orders.create response: {order_response}")
         
         if not order_response or not order_response.get('success') or 'data' not in order_response:
             error_msg = order_response.get('message', '알 수 없는 오류') if order_response else '응답 없음'
@@ -412,7 +445,7 @@ def create_book_order(book_id: str, shipping_info: Dict[str, Any]) -> Tuple[bool
     except Exception as e:
         print(f"[ERROR] 주문 생성 중 오류: {e}")
         print(f"[ERROR] 오류 타입: {type(e).__name__}")
-        print(f"[ERROR] 사용된 전체 파라미터: {order_params}")
+        print(f"[ERROR] 사용된 전체 파라미터: {order_params if order_params is not None else '(미구성)'}")
         
         # ApiError인 경우 상세 정보 출력
         if hasattr(e, 'status_code'):
