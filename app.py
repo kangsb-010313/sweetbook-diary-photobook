@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, Form, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 from utils.data_manager import (
     get_diaries,
@@ -35,6 +36,12 @@ app = FastAPI(
     description="일상의 소중한 순간을 기록한 일기와 사진을 아름다운 포토북으로 제작하는 서비스",
     version="1.0.0"
 )
+
+# 주문 완료 화면 PRG(POST → Redirect → GET)용 세션
+_session_secret = os.getenv("SESSION_SECRET_KEY", "").strip()
+if not _session_secret:
+    _session_secret = "dev-only-insecure-session-key-change-in-production-32chars"
+app.add_middleware(SessionMiddleware, secret_key=_session_secret)
 
 # 정적 파일 마운트
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -594,25 +601,22 @@ async def orders_create(
         # API가 totalPrice=0만 주거나 필드명이 다를 때 → 미리보기에서 확인한 금액 사용
         display_total = api_total if api_total > 0 else confirmed
 
-        return templates.TemplateResponse(
-            request=request,
-            name="success.html",
-            context={
-                "page_title": "포토북 주문 완료",
-                "success": True,
-                "book_uid": bid,
-                "order_uid": order_result.get("order_id"),
-                "order_status": order_result.get("status", "PENDING"),
-                "order_status_display": order_result.get("status_display", "주문 접수됨"),
-                "selected_count": len(selected_diaries_data),
-                "page_count": page_count,
-                "total_cost": display_total,
-                "book_title": book_title.strip() or "나의 일기 포토북",
-                "template_id": template_id,
-                "shipping_info": shipping_info,
-                "created_at": order_result.get("created_at", datetime.now().isoformat()),
-            },
-        )
+        request.session["order_success"] = {
+            "page_title": "포토북 주문 완료",
+            "success": True,
+            "book_uid": bid,
+            "order_uid": order_result.get("order_id"),
+            "order_status": order_result.get("status", "PENDING"),
+            "order_status_display": order_result.get("status_display", "주문 접수됨"),
+            "selected_count": len(selected_diaries_data),
+            "page_count": page_count,
+            "total_cost": display_total,
+            "book_title": book_title.strip() or "나의 일기 포토북",
+            "template_id": template_id,
+            "shipping_info": shipping_info,
+            "created_at": order_result.get("created_at", datetime.now().isoformat()),
+        }
+        return RedirectResponse(url="/success", status_code=303)
     except Exception as e:
         print(f"[ERROR] 주문 처리 중 오류: {e}")
         return _render_preview(
@@ -623,8 +627,15 @@ async def orders_create(
 
 @app.get("/success", response_class=HTMLResponse)
 async def order_success_get(request: Request):
-    """GET 요청으로 접근 시 홈으로 리다이렉트"""
-    return RedirectResponse(url="/", status_code=303)
+    """주문 직후 GET 전용(PR). 세션에 저장된 완료 정보를 표시(새로고침 시에도 주문 API 재호출 없음)."""
+    payload = request.session.get("order_success")
+    if not payload:
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(
+        request=request,
+        name="success.html",
+        context=payload,
+    )
 
 @app.get("/api/diaries")
 async def api_get_diaries():
