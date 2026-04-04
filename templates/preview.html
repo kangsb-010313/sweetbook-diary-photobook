@@ -15,11 +15,19 @@
             <p class="text-muted">선택하신 일기들로 제작될 포토북을 최종 확인해주세요</p>
         </div>
 
-        <!-- 에러 메시지 표시 -->
+        {% if quote_error %}
+        <div class="alert alert-danger mb-4" role="alert">
+            <h5 class="alert-heading">
+                <i class="bi bi-exclamation-triangle-fill"></i> 안내
+            </h5>
+            <p class="mb-0">{{ quote_error }}</p>
+        </div>
+        {% endif %}
+
         {% if error_message %}
         <div class="alert alert-danger mb-4" role="alert">
             <h5 class="alert-heading">
-                <i class="bi bi-exclamation-triangle-fill"></i> 주문 처리 실패
+                <i class="bi bi-exclamation-triangle-fill"></i> 주문 처리 안내
             </h5>
             <p class="mb-0">{{ error_message }}</p>
             <hr>
@@ -178,7 +186,7 @@
                         <div class="mb-4">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="fw-bold">포토북 사양</span>
-                                <span class="badge bg-primary">{{ cost_info.book_spec_uid }}</span>
+                                <span class="badge bg-primary">{{ specs.book_spec_uid }}</span>
                             </div>
                             <ul class="list-unstyled small mb-0">
                                 <li>📖 {{ validation.page_count }}페이지 ({{ selected_count }}개 일기 + 표지)</li>
@@ -188,38 +196,34 @@
                             </ul>
                         </div>
 
-                        <!-- 가격 정보 -->
-                        <div class="mb-4">
-                            <div class="d-flex align-items-center mb-3">
-                                <h6 class="mb-0 me-2">💰 예상 제작 비용</h6>
-                                {% if cost_info.is_estimate %}
-                                <span class="badge bg-warning text-dark small">임시 추정</span>
-                                {% endif %}
+                        {% if show_quote_confirm %}
+                        <div class="card border-primary mb-4">
+                            <div class="card-header bg-primary text-white py-2">
+                                <h6 class="mb-0"><i class="bi bi-cash-coin"></i> 주문 금액 확인</h6>
                             </div>
-                            
-                            {% if cost_info.is_estimate %}
-                            <div class="alert alert-warning py-2 mb-3">
-                                <small>
-                                    <i class="bi bi-exclamation-triangle"></i>
-                                    {{ cost_info.estimate_note }}
-                                </small>
-                            </div>
-                            {% endif %}
-                            
-                            <div class="price-breakdown">
-                                {% for item, price in cost_info.price_breakdown.items() %}
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span class="small">{{ item }}</span>
-                                    <span class="small">{{ price }}</span>
-                                </div>
-                                {% endfor %}
-                                <hr class="my-3">
-                                <div class="d-flex justify-content-between">
-                                    <strong>총 예상 금액</strong>
-                                    <strong class="text-primary fs-5">{{ "{:,}".format(cost_info.total_price) }}원</strong>
-                                </div>
+                            <div class="card-body">
+                                <p class="mb-3">
+                                    최종 결제 금액은 <strong class="text-primary fs-5">{{ "{:,}".format(quoted_price) }}원</strong>입니다.<br>
+                                    이 금액으로 포토북을 주문하시겠습니까?
+                                </p>
+                                <p class="small text-muted mb-3">
+                                    선택 템플릿: {{ quote_template_label }} · 페이지: {{ quote_page_count }}페이지
+                                </p>
+                                <form method="post" action="/orders/create" id="confirmOrderForm" class="d-grid gap-2">
+                                    <input type="hidden" name="book_id" value="{{ quote_book_id }}">
+                                    <input type="hidden" name="selected_diaries" value="{{ selected_param }}">
+                                    <input type="hidden" name="template_id" value="{{ quote_template_id }}">
+                                    <input type="hidden" name="page_count" value="{{ quote_page_count }}">
+                                    <input type="hidden" name="quoted_price" value="{{ quoted_price }}">
+                                    <input type="hidden" name="book_title" value="{{ quote_book_title|e }}">
+                                    <button type="submit" class="btn btn-success btn-lg">
+                                        <i class="bi bi-bag-check"></i> 주문하기
+                                    </button>
+                                </form>
+                                <a href="/preview?selected={{ selected_param }}" class="btn btn-outline-secondary w-100 mt-2">취소</a>
                             </div>
                         </div>
+                        {% endif %}
 
                         <!-- 제작 안내 -->
                         <div class="mb-4">
@@ -231,48 +235,46 @@
                             </ul>
                         </div>
 
+                        {% if not show_quote_confirm %}
                         <!-- 템플릿 선택 -->
                         <div class="mb-4">
                             <h6 class="mb-2">🎨 디자인 템플릿</h6>
-                            <select class="form-select" id="templateSelect">
+                            <select class="form-select" id="templateSelect" {% if status_info.type == 'error' %}disabled{% endif %}>
                                 {% for template in templates %}
                                 <option value="{{ template.template_id }}">{{ template.name }}</option>
                                 {% endfor %}
                             </select>
                             <small class="text-muted mt-1 d-block">선택한 템플릿으로 포토북이 제작됩니다</small>
                         </div>
+                        {% endif %}
 
                         <!-- 액션 버튼 -->
                         <div class="d-grid gap-2">
                             {% if status_info.type == 'error' %}
-                            <button class="btn btn-danger btn-lg" disabled>
+                            <button class="btn btn-danger btn-lg" type="button" disabled>
                                 <i class="bi bi-x-circle"></i> 제작 불가
                             </button>
                             <small class="text-danger text-center">{{ status_info.description }}</small>
-                            {% else %}
-                            <form method="post" action="/success" id="orderForm">
-                                <input type="hidden" name="selected_diaries" value="{{ ','.join(selected_ids) }}">
-                                <input type="hidden" name="template_id" id="selectedTemplate" value="{{ templates[0].template_id }}">
-                                <input type="hidden" name="page_count" value="{{ validation.page_count }}">
-                                <input type="hidden" name="total_cost" value="{{ cost_info.total_price }}">
+                            {% elif not show_quote_confirm %}
+                            <form method="post" action="/preview/quote" id="quoteRequestForm" novalidate>
+                                <input type="hidden" name="selected_diaries" value="{{ selected_param }}">
+                                <input type="hidden" name="template_id" id="selectedTemplate" value="{% if templates %}{{ templates[0].template_id }}{% endif %}">
                                 <button type="submit" class="btn btn-success btn-lg w-100">
                                     <i class="bi bi-cart-plus"></i> 포토북 제작 요청
                                 </button>
                             </form>
                             {% endif %}
-                            
+
                             <a href="/" class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-left"></i> 홈으로 돌아가기
                             </a>
                         </div>
 
-                        <!-- 제작 요청 안내 -->
-                        {% if status_info.type != 'error' %}
+                        {% if status_info.type != 'error' and not show_quote_confirm %}
                         <div class="alert alert-light mt-3 mb-0">
                             <small>
                                 <i class="bi bi-info-circle"></i>
-                                <strong>제작 요청</strong> 버튼을 클릭하면 포토북 제작이 시작됩니다.
-                                <br>현재는 테스트 모드로 실제 결제는 발생하지 않습니다.
+                                <strong>포토북 제작 요청</strong>을 누르면 제작에 필요한 정보를 준비한 뒤, <strong>확정된 주문 금액</strong>을 안내합니다. 금액에 동의하시면 <strong>주문하기</strong>로 이어집니다.
                             </small>
                         </div>
                         {% endif %}

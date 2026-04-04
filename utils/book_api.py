@@ -340,6 +340,63 @@ def get_book_estimate(book_id: str) -> Tuple[bool, Dict[str, Any]]:
         print(f"[ERROR] 견적 조회 중 오류: {e}")
         return False, {"error": f"견적 조회 실패: {str(e)}"}
 
+
+def get_photobook_quote(
+    selected_diaries: List[Dict[str, Any]],
+    template_id: str = "template_001",
+) -> Tuple[bool, Dict[str, Any]]:
+    """
+    책 생성 → 내용 구성 → 확정 후 시스템 기준 금액을 조회합니다.
+    성공 시 book_id·금액·페이지 수 등을 반환하고, 실패 시 사용자용 짧은 메시지만 담습니다.
+    """
+    ok, book_result = create_book_with_diaries(selected_diaries, template_id)
+    if not ok:
+        print(f"[ERROR] get_photobook_quote: 책 준비 실패: {book_result}")
+        return False, {
+            "error": "주문 금액을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+        }
+
+    if not book_result.get("finalize_attempted"):
+        print("[ERROR] get_photobook_quote: 책이 확정되지 않음")
+        return False, {
+            "error": "주문 금액을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+        }
+
+    book_id = book_result.get("book_id") or ""
+    if not book_id:
+        return False, {
+            "error": "주문 금액을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+        }
+
+    est_ok, est = get_book_estimate(book_id)
+    if not est_ok:
+        print(f"[ERROR] get_photobook_quote: 금액 조회 실패: {est}")
+        return False, {
+            "error": "주문 금액을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+        }
+
+    raw_price = est.get("total_price", 0)
+    try:
+        quoted_price = int(raw_price)
+    except (TypeError, ValueError):
+        quoted_price = 0
+
+    page_api = est.get("page_count")
+    page_book = book_result.get("page_count")
+    try:
+        page_count = int(page_api) if page_api is not None else int(page_book or 0)
+    except (TypeError, ValueError):
+        page_count = int(book_result.get("page_count") or 0)
+
+    return True, {
+        "book_id": book_id,
+        "quoted_price": quoted_price,
+        "page_count": page_count,
+        "book_title": book_result.get("title", "나의 일기 포토북"),
+        "template_id": template_id,
+    }
+
+
 def format_price_breakdown(estimate_response: Dict[str, Any]) -> Dict[str, str]:
     """
     견적 응답을 가격 분석표 형태로 포맷팅합니다.

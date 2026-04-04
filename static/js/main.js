@@ -206,21 +206,30 @@ function initializeDiaryCardAnimations() {
  * 제작 요청 폼 처리
  */
 function initializeOrderForm() {
-    const orderForm = document.getElementById('orderForm');
-    if (orderForm) {
-        orderForm.addEventListener('submit', function(e) {
-            console.log('제작 요청 폼 제출됨');
-            
+    const quoteForm = document.getElementById('quoteRequestForm');
+    if (quoteForm) {
+        quoteForm.addEventListener('submit', function() {
             const submitBtn = this.querySelector('button[type="submit"]');
             if (submitBtn) {
                 submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 제작 요청 중...';
+                submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 금액 확인 중...';
             }
-            
-            // 실제 제출 허용
             return true;
         });
-        console.log('제작 요청 폼 처리 초기화 완료');
+    }
+    const confirmForm = document.getElementById('confirmOrderForm');
+    if (confirmForm) {
+        confirmForm.addEventListener('submit', function() {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 주문 처리 중...';
+            }
+            return true;
+        });
+    }
+    if (quoteForm || confirmForm) {
+        console.log('포토북 견적/주문 폼 처리 초기화 완료');
     }
 }
 
@@ -276,6 +285,8 @@ function initializeLoadingStates() {
         const act = form && form.getAttribute('action');
         if (button.id === 'createPhotobookBtn' ||
             button.closest('#orderForm') ||
+            button.closest('#quoteRequestForm') ||
+            button.closest('#confirmOrderForm') ||
             button.closest('#photobookForm') ||
             button.closest('#diaryForm') ||
             button.closest('#deleteDiaryConfirmForm') ||
@@ -347,6 +358,9 @@ function initializeFormValidation() {
     forms.forEach(form => {
         // 일기 작성 폼: 네이티브 POST 제출 유지 (main.js에서 checkValidity 로 막지 않음)
         if (form.id === 'diaryForm') {
+            return;
+        }
+        if (form.id === 'quoteRequestForm' || form.id === 'confirmOrderForm') {
             return;
         }
         // 일기 삭제 확인 모달: 제출이 막히지 않도록 제외

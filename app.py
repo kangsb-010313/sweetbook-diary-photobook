@@ -18,8 +18,11 @@ from utils.data_manager import (
     try_delete_upload_rel_path,
 )
 from utils.book_api import (
-    get_book_templates, estimate_book_cost, validate_diary_selection, get_photobook_specs,
-    create_book_with_diaries, create_book_order
+    get_book_templates,
+    validate_diary_selection,
+    get_photobook_specs,
+    create_book_order,
+    get_photobook_quote,
 )
 from datetime import datetime
 
@@ -355,196 +358,256 @@ async def create_photobook(request: Request, selected_diaries: str = Form(...)):
         print(f"[ERROR] 포토북 생성 중 오류: {e}")
         return RedirectResponse(url="/?error=server_error", status_code=303)
 
+def _preview_status_info(selected_count: int) -> dict:
+    if selected_count < 22:
+        return {
+            "type": "error",
+            "message": "제작 불가",
+            "description": f"최소 22개 일기가 필요합니다. (현재: {selected_count}개)",
+        }
+    if selected_count > 128:
+        return {
+            "type": "error",
+            "message": "제작 불가",
+            "description": f"최대 128개까지 선택 가능합니다. (현재: {selected_count}개)",
+        }
+    if 30 <= selected_count <= 50:
+        return {
+            "type": "recommended",
+            "message": "권장 범위",
+            "description": f"최적의 포토북 분량입니다. ({selected_count}개 선택)",
+        }
+    if 22 <= selected_count < 30:
+        return {
+            "type": "warning",
+            "message": "제작 가능",
+            "description": f"권장 범위보다 적습니다. (권장: 30~50개)",
+        }
+    return {
+        "type": "warning",
+        "message": "제작 가능",
+        "description": f"권장 범위보다 많습니다. (권장: 30~50개)",
+    }
+
+
+def _template_display_name(templates_list: list, template_id: str) -> str:
+    for t in templates_list:
+        if t.get("template_id") == template_id:
+            return t.get("name") or template_id
+    return template_id
+
+
+def _render_preview(
+    request: Request,
+    selected: str,
+    *,
+    error_message: str | None = None,
+    quote_error: str | None = None,
+    show_quote_confirm: bool = False,
+    quoted_price: int | None = None,
+    quote_book_id: str | None = None,
+    quote_page_count: int | None = None,
+    quote_template_id: str | None = None,
+    quote_book_title: str | None = None,
+    quote_template_label: str | None = None,
+):
+    selected_ids = [s.strip() for s in selected.split(",") if s.strip()]
+    selected_count = len(selected_ids)
+    all_diaries = get_diaries()
+    selected_diaries_data = []
+    for diary in all_diaries:
+        if str(diary["id"]) in selected_ids:
+            selected_diaries_data.append(diary)
+
+    validation = validate_diary_selection(selected_count)
+    specs = get_photobook_specs()
+    templates_list = get_book_templates()
+    status_info = _preview_status_info(selected_count)
+    selected_param = ",".join(selected_ids)
+
+    ctx = {
+        "page_title": "포토북 미리보기",
+        "selected_diaries": selected_diaries_data,
+        "selected_count": selected_count,
+        "validation": validation,
+        "specs": specs,
+        "templates": templates_list,
+        "selected_ids": selected_ids,
+        "selected_param": selected_param,
+        "status_info": status_info,
+        "error_message": error_message,
+        "quote_error": quote_error,
+        "show_quote_confirm": show_quote_confirm,
+        "quoted_price": quoted_price,
+        "quote_book_id": quote_book_id or "",
+        "quote_page_count": quote_page_count or 0,
+        "quote_template_id": quote_template_id or "",
+        "quote_book_title": quote_book_title or "",
+        "quote_template_label": quote_template_label or "",
+    }
+    return templates.TemplateResponse(request=request, name="preview.html", context=ctx)
+
+
 @app.get("/preview", response_class=HTMLResponse)
 async def preview_photobook(request: Request, selected: str = None, error: str = None):
-    """포토북 미리보기 페이지"""
+    """포토북 미리보기 페이지 (가격 미표시)"""
     if not selected:
-        # 선택된 일기가 없으면 홈으로 리다이렉트
         return RedirectResponse(url="/", status_code=303)
-    
-    try:
-        # 선택된 일기 ID 파싱
-        selected_ids = [id.strip() for id in selected.split(',') if id.strip()]
-        selected_count = len(selected_ids)
-        
-        # 선택된 일기 데이터 가져오기
-        all_diaries = get_diaries()
-        selected_diaries_data = []
-        
-        for diary in all_diaries:
-            if str(diary["id"]) in selected_ids:
-                selected_diaries_data.append(diary)
-        
-        # 검증
-        validation = validate_diary_selection(selected_count)
-        specs = get_photobook_specs()
-        templates_list = get_book_templates()
 
-        # 미리보기는 JSON 렌더링만. BookPrint 책/견적은 "제작 요청" 시 한 번에 수행.
-        print(f"[DEBUG] Preview 비용 표시: 로컬 추정만 사용 (선택 일기 수: {selected_count})")
-        cost_info = estimate_book_cost(selected_count)
-        
-        # 상태 메시지 생성
-        status_info = {
-            "type": "success",
-            "message": "제작 가능",
-            "description": ""
-        }
-        
-        if selected_count < 22:
-            status_info = {
-                "type": "error",
-                "message": "제작 불가",
-                "description": f"최소 22개 일기가 필요합니다. (현재: {selected_count}개)"
-            }
-        elif selected_count > 128:
-            status_info = {
-                "type": "error", 
-                "message": "제작 불가",
-                "description": f"최대 128개까지 선택 가능합니다. (현재: {selected_count}개)"
-            }
-        elif 30 <= selected_count <= 50:
-            status_info = {
-                "type": "recommended",
-                "message": "권장 범위",
-                "description": f"최적의 포토북 분량입니다. ({selected_count}개 선택)"
-            }
-        elif 22 <= selected_count < 30:
-            status_info = {
-                "type": "warning",
-                "message": "제작 가능",
-                "description": f"권장 범위보다 적습니다. (권장: 30~50개)"
-            }
-        else:  # 51~128개
-            status_info = {
-                "type": "warning",
-                "message": "제작 가능",
-                "description": f"권장 범위보다 많습니다. (권장: 30~50개)"
-            }
-        
-        print(f"[DEBUG] Preview 페이지 렌더링 - 선택 개수: {selected_count}, 상태: {status_info['type']}")
-        
-        return templates.TemplateResponse(
-            request=request,
-            name="preview.html",
-            context={
-                "page_title": "포토북 미리보기",
-                "selected_diaries": selected_diaries_data,
-                "selected_count": selected_count,
-                "validation": validation,
-                "cost_info": cost_info,
-                "specs": specs,
-                "templates": templates_list,
-                "selected_ids": selected_ids,
-                "status_info": status_info,
-                "error_message": error  # 에러 메시지 추가
-            }
-        )
-        
+    try:
+        selected_ids = [s.strip() for s in selected.split(",") if s.strip()]
+        print(f"[DEBUG] Preview 페이지 - 선택 일기 수: {len(selected_ids)}")
+        return _render_preview(request, selected, error_message=error)
     except Exception as e:
         print(f"[ERROR] 미리보기 페이지 로드 중 오류: {e}")
         return RedirectResponse(url="/?error=preview_error", status_code=303)
 
-@app.post("/success", response_class=HTMLResponse)
-async def create_order(request: Request, 
-                      selected_diaries: str = Form(...),
-                      template_id: str = Form(...),
-                      page_count: int = Form(...),
-                      total_cost: int = Form(...)):
-    """실제 주문 생성 및 완료 페이지"""
+
+@app.post("/preview/quote", response_class=HTMLResponse)
+async def preview_quote(
+    request: Request,
+    selected_diaries: str = Form(...),
+    template_id: str = Form(...),
+):
+    """포토북 제작 요청: 책 준비 후 금액만 조회 (주문은 하지 않음)"""
     try:
-        print(f"[DEBUG] 주문 생성 요청 - 선택된 일기: {selected_diaries}")
-        
-        # 선택된 일기 데이터 파싱
-        selected_ids = [id.strip() for id in selected_diaries.split(',') if id.strip()]
+        selected_ids = [s.strip() for s in selected_diaries.split(",") if s.strip()]
+        selected_count = len(selected_ids)
+        validation = validate_diary_selection(selected_count)
+        if not validation["valid"]:
+            return RedirectResponse(url="/?error=invalid_selection", status_code=303)
+
         all_diaries = get_diaries()
         selected_diaries_data = []
-        
         for diary in all_diaries:
             if str(diary["id"]) in selected_ids:
                 selected_diaries_data.append(diary)
-        
+
+        if len(selected_diaries_data) != selected_count:
+            return _render_preview(
+                request,
+                selected_diaries,
+                quote_error="선택한 일기를 다시 확인해주세요.",
+            )
+
+        ok, data = get_photobook_quote(selected_diaries_data, template_id)
+        if not ok:
+            return _render_preview(
+                request,
+                selected_diaries,
+                quote_error=data.get(
+                    "error",
+                    "주문 금액을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+                ),
+            )
+
+        templates_list = get_book_templates()
+        label = _template_display_name(templates_list, data["template_id"])
+
+        return _render_preview(
+            request,
+            selected_diaries,
+            show_quote_confirm=True,
+            quoted_price=data["quoted_price"],
+            quote_book_id=data["book_id"],
+            quote_page_count=data["page_count"],
+            quote_template_id=data["template_id"],
+            quote_book_title=data["book_title"],
+            quote_template_label=label,
+        )
+    except Exception as e:
+        print(f"[ERROR] preview/quote 처리 중 오류: {e}")
+        try:
+            return _render_preview(
+                request,
+                selected_diaries,
+                quote_error="주문 금액을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+            )
+        except Exception:
+            return RedirectResponse(url="/?error=preview_error", status_code=303)
+
+
+@app.post("/orders/create", response_class=HTMLResponse)
+async def orders_create(
+    request: Request,
+    book_id: str = Form(...),
+    selected_diaries: str = Form(...),
+    template_id: str = Form(...),
+    page_count: int = Form(...),
+    quoted_price: int = Form(...),
+    book_title: str = Form(...),
+):
+    """금액 확인 후 실제 주문만 수행 (이미 준비된 책 ID 재사용)"""
+    shipping_info = {
+        "name": "테스트 사용자",
+        "address": "서울특별시 강남구 테헤란로 123",
+        "address2": "4층",
+        "phone": "010-1234-5678",
+        "postalCode": "06100",
+        "memo": "부재 시 경비실",
+    }
+
+    try:
+        bid = (book_id or "").strip()
+        if not bid:
+            return _render_preview(
+                request,
+                selected_diaries,
+                error_message="주문 정보가 올바르지 않습니다. 처음부터 다시 진행해주세요.",
+            )
+
+        selected_ids = [s.strip() for s in selected_diaries.split(",") if s.strip()]
+        all_diaries = get_diaries()
+        selected_diaries_data = []
+        for diary in all_diaries:
+            if str(diary["id"]) in selected_ids:
+                selected_diaries_data.append(diary)
+
         if not selected_diaries_data:
-            print("[ERROR] 선택된 일기 데이터를 찾을 수 없음")
-            return RedirectResponse(url="/?error=no_diaries", status_code=303)
-        
-        # 실제 포토북 생성
-        print(f"[DEBUG] 포토북 생성 시작 - 일기 수: {len(selected_diaries_data)}")
-        book_success, book_result = create_book_with_diaries(selected_diaries_data, template_id)
-        
-        if not book_success:
-            print(f"[ERROR] 포토북 생성 실패: {book_result}")
-            # 포토북 생성 실패 시 preview로 리다이렉트 (에러 메시지 포함)
-            error_msg = book_result.get("error", "포토북 생성에 실패했습니다.")
-            return RedirectResponse(
-                url=f"/preview?selected={selected_diaries}&error={error_msg}", 
-                status_code=303
-            )
-        
-        book_id = book_result["book_id"]
-        print(f"[DEBUG] 포토북 생성 완료 - Book ID: {book_id}")
-
-        if not book_result.get("finalize_attempted"):
-            err = "책이 최종 확정(FINALIZED)되지 않아 주문할 수 없습니다."
-            print(f"[ERROR] {err}")
-            return RedirectResponse(
-                url=f"/preview?selected={selected_diaries}&error={err}",
-                status_code=303,
+            return _render_preview(
+                request,
+                selected_diaries,
+                error_message="선택한 일기를 찾을 수 없습니다. 메인에서 다시 선택해주세요.",
             )
 
-        # TODO: 실제 서비스에서는 사용자 입력 폼에서 배송 정보를 받아야 함
-        shipping_info = {
-            "name": "테스트 사용자",
-            "address": "서울특별시 강남구 테헤란로 123",
-            "address2": "4층",
-            "phone": "010-1234-5678",
-            "postalCode": "06100",
-            "memo": "부재 시 경비실",
-        }
-        
-        # 실제 주문 생성
-        print(f"[DEBUG] 주문 생성 시작 - Book ID: {book_id}")
-        order_success, order_result = create_book_order(book_id, shipping_info)
-        
+        print(f"[DEBUG] 주문 생성 요청 - book_id={bid}, 일기 수={len(selected_diaries_data)}")
+        order_success, order_result = create_book_order(bid, shipping_info)
+
         if not order_success:
             print(f"[ERROR] 주문 생성 실패: {order_result}")
-            # 주문 생성 실패 시 preview로 리다이렉트 (에러 메시지 포함)
-            error_msg = order_result.get("error", "주문 생성에 실패했습니다.")
-            return RedirectResponse(
-                url=f"/preview?selected={selected_diaries}&error={error_msg}", 
-                status_code=303
+            return _render_preview(
+                request,
+                selected_diaries,
+                error_message="주문 처리에 실패했습니다. 잠시 후 다시 시도해주세요.",
             )
-        
+
         print(f"[DEBUG] 주문 생성 완료 - Order ID: {order_result.get('order_id')}")
-        
-        # 성공 페이지 렌더링 - 실제 API 응답 데이터 사용
+
         return templates.TemplateResponse(
             request=request,
             name="success.html",
             context={
                 "page_title": "포토북 주문 완료",
                 "success": True,
-                "book_uid": book_id,
+                "book_uid": bid,
                 "order_uid": order_result.get("order_id"),
                 "order_status": order_result.get("status", "PENDING"),
                 "order_status_display": order_result.get("status_display", "주문 접수됨"),
                 "selected_count": len(selected_diaries_data),
                 "page_count": page_count,
-                "total_cost": order_result.get("total_price", total_cost),
-                "book_title": book_result.get("title", "나의 일기 포토북"),
+                "total_cost": order_result.get("total_price", quoted_price),
+                "book_title": book_title.strip() or "나의 일기 포토북",
                 "template_id": template_id,
                 "shipping_info": shipping_info,
-                "created_at": order_result.get("created_at", datetime.now().isoformat())
-            }
+                "created_at": order_result.get("created_at", datetime.now().isoformat()),
+            },
         )
-        
     except Exception as e:
         print(f"[ERROR] 주문 처리 중 오류: {e}")
-        # 예외 발생 시 preview로 리다이렉트 (에러 메시지 포함)
-        error_msg = f"주문 처리 중 오류가 발생했습니다: {str(e)}"
-        return RedirectResponse(
-            url=f"/preview?selected={selected_diaries}&error={error_msg}", 
-            status_code=303
+        return _render_preview(
+            request,
+            selected_diaries,
+            error_message="주문 처리에 실패했습니다. 잠시 후 다시 시도해주세요.",
         )
 
 @app.get("/success", response_class=HTMLResponse)
