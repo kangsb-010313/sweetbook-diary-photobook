@@ -583,6 +583,17 @@ async def orders_create(
 
         print(f"[DEBUG] 주문 생성 완료 - Order ID: {order_result.get('order_id')}")
 
+        try:
+            api_total = int(order_result.get("total_price") or 0)
+        except (TypeError, ValueError):
+            api_total = 0
+        try:
+            confirmed = int(quoted_price)
+        except (TypeError, ValueError):
+            confirmed = 0
+        # API가 totalPrice=0만 주거나 필드명이 다를 때 → 미리보기에서 확인한 금액 사용
+        display_total = api_total if api_total > 0 else confirmed
+
         return templates.TemplateResponse(
             request=request,
             name="success.html",
@@ -595,7 +606,7 @@ async def orders_create(
                 "order_status_display": order_result.get("status_display", "주문 접수됨"),
                 "selected_count": len(selected_diaries_data),
                 "page_count": page_count,
-                "total_cost": order_result.get("total_price", quoted_price),
+                "total_cost": display_total,
                 "book_title": book_title.strip() or "나의 일기 포토북",
                 "template_id": template_id,
                 "shipping_info": shipping_info,

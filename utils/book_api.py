@@ -311,10 +311,12 @@ def get_book_estimate(book_id: str) -> Tuple[bool, Dict[str, Any]]:
             or 0
         )
 
+        page_count_est = _page_count_from_estimate_raw(estimate_data_raw)
+
         estimate_data = {
             "book_id": book_id,
             "book_spec_uid": estimate_data_raw.get("bookSpecUid", estimate_data_raw.get("book_spec_uid", "SQUAREBOOK_HC")),
-            "page_count": estimate_data_raw.get("pageCount", estimate_data_raw.get("page_count", 0)),
+            "page_count": page_count_est,
             "book_price": estimate_data_raw.get("bookPrice", estimate_data_raw.get("book_price", 0)),
             "shipping_fee": estimate_data_raw.get("shippingFee", estimate_data_raw.get("shipping_fee", 0)),
             "vat_amount": estimate_data_raw.get("vatAmount", estimate_data_raw.get("vat_amount", 0)),
@@ -339,6 +341,31 @@ def get_book_estimate(book_id: str) -> Tuple[bool, Dict[str, Any]]:
     except Exception as e:
         print(f"[ERROR] 견적 조회 중 오류: {e}")
         return False, {"error": f"견적 조회 실패: {str(e)}"}
+
+
+def _page_count_from_estimate_raw(estimate_data_raw: Dict[str, Any]) -> int:
+    """orders.estimate data: 최상단 pageCount 또는 items[0].pageCount."""
+    for key in ("pageCount", "page_count"):
+        v = estimate_data_raw.get(key)
+        if v is not None:
+            try:
+                n = int(v)
+                if n > 0:
+                    return n
+            except (TypeError, ValueError):
+                pass
+    items = estimate_data_raw.get("items") or []
+    if isinstance(items, list) and items:
+        first = items[0]
+        if isinstance(first, dict):
+            for key in ("pageCount", "page_count"):
+                v = first.get(key)
+                if v is not None:
+                    try:
+                        return int(v)
+                    except (TypeError, ValueError):
+                        pass
+    return 0
 
 
 def get_photobook_quote(
@@ -381,12 +408,15 @@ def get_photobook_quote(
     except (TypeError, ValueError):
         quoted_price = 0
 
-    page_api = est.get("page_count")
-    page_book = book_result.get("page_count")
     try:
-        page_count = int(page_api) if page_api is not None else int(page_book or 0)
+        page_from_est = int(est.get("page_count") or 0)
     except (TypeError, ValueError):
-        page_count = int(book_result.get("page_count") or 0)
+        page_from_est = 0
+    try:
+        page_from_book = int(book_result.get("page_count") or 0)
+    except (TypeError, ValueError):
+        page_from_book = 0
+    page_count = page_from_est if page_from_est > 0 else page_from_book
 
     return True, {
         "book_id": book_id,
@@ -480,12 +510,34 @@ def create_book_order(book_id: str, shipping_info: Dict[str, Any]) -> Tuple[bool
         print(f"[DEBUG] 주문 데이터: {order_response['data']}")
         
         order_data_raw = order_response['data']
+
+        def _order_total_from_raw(raw: Dict[str, Any]) -> int:
+            """orders.create data에서 결제/합계 금액 필드 후보를 순서대로 시도."""
+            for key in (
+                "paidCreditAmount",
+                "totalPrice",
+                "total_price",
+                "totalAmount",
+                "total_amount",
+                "paid_amount",
+                "orderAmount",
+            ):
+                v = raw.get(key)
+                if v is not None and v != "":
+                    try:
+                        return int(float(v))
+                    except (TypeError, ValueError):
+                        continue
+            return 0
+
+        total_parsed = _order_total_from_raw(order_data_raw)
+
         order_data = {
             "order_id": order_id,
             "book_id": book_id,
             "status": order_data_raw.get("status", "PENDING"),
             "status_display": order_data_raw.get("statusDisplay", "주문 접수됨"),
-            "total_price": order_data_raw.get("totalPrice", order_data_raw.get("total_price", 0)),
+            "total_price": total_parsed,
             "order_status": order_data_raw.get("orderStatus", order_data_raw.get("status", "PENDING")),
             "created_at": order_data_raw.get("createdAt", datetime.now().isoformat()),
             "payment_status": order_data_raw.get("paymentStatus", "PENDING"),
