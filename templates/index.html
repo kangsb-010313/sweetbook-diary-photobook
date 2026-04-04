@@ -3,6 +3,43 @@
 {% block content %}
 <div class="row">
     <div class="col-12">
+        {% if error_q %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            {% if error_q == 'delete_failed' %}
+            일기 삭제에 실패했습니다. 잠시 후 다시 시도해주세요.
+            {% elif error_q == 'update_failed' %}
+            일기 수정에 실패했습니다. 잠시 후 다시 시도해주세요.
+            {% elif error_q == 'not_found' %}
+            요청한 일기를 찾을 수 없습니다.
+            {% else %}
+            처리 중 문제가 발생했습니다. (코드: {{ error_q }})
+            {% endif %}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+
+        {% if deleted %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill"></i> 일기가 삭제되었습니다.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+
+        {% if updated %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill"></i> 일기가 수정되었습니다.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+
+        {% if saved %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill"></i> 새 일기가 저장되었습니다.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+
         <!-- 페이지 헤더 -->
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
@@ -18,13 +55,6 @@
 
         <!-- 일기 목록이 있는 경우 -->
         {% if diaries %}
-
-        {% if saved %}
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle-fill"></i> 새 일기가 저장되었습니다.
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {% endif %}
         
         <!-- 포토북 제작 안내 -->
         <div class="alert alert-info mb-4">
@@ -104,9 +134,37 @@
                         
                         <small class="text-muted">{{ diary.content|length }}자</small>
                     </div>
+                    <div class="card-footer bg-transparent border-top-0 pt-0 d-flex flex-wrap gap-2 justify-content-end align-items-center">
+                        <a href="/diaries/{{ diary.id }}/edit" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-pencil-square"></i> 수정
+                        </a>
+                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteDiaryConfirmModal" data-diary-id="{{ diary.id }}" aria-label="일기 삭제">
+                            <i class="bi bi-trash"></i> 삭제
+                        </button>
+                    </div>
                 </div>
             </div>
             {% endfor %}
+        </div>
+
+        <div class="modal fade" id="deleteDiaryConfirmModal" tabindex="-1" aria-labelledby="deleteDiaryConfirmLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <form id="deleteDiaryConfirmForm" method="post" action="/diaries/delete" class="modal-content" novalidate>
+                    <input type="hidden" name="diary_id" id="deleteDiaryConfirmId" value="">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="deleteDiaryConfirmLabel">일기 삭제</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                    </div>
+                    <div class="modal-body">
+                        정말 삭제하시겠습니까?<br>
+                        <span class="text-muted small">삭제된 일기는 복구할 수 없습니다.</span>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                        <button type="submit" class="btn btn-danger">삭제</button>
+                    </div>
+                </form>
+            </div>
         </div>
 
         {% else %}
@@ -146,4 +204,19 @@
 {% block extra_head %}
 <!-- Bootstrap Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var modalEl = document.getElementById('deleteDiaryConfirmModal');
+    if (!modalEl) return;
+    modalEl.addEventListener('show.bs.modal', function (event) {
+        var trigger = event.relatedTarget;
+        var id = trigger && trigger.getAttribute('data-diary-id');
+        var input = document.getElementById('deleteDiaryConfirmId');
+        if (input && id) input.value = id;
+    });
+});
+</script>
 {% endblock %}

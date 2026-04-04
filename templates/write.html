@@ -5,8 +5,8 @@
     <div class="col-lg-8">
         <!-- 페이지 헤더 -->
         <div class="mb-4">
-            <h1 class="h2 mb-1">새 일기 작성</h1>
-            <p class="text-muted">오늘의 소중한 순간을 기록해보세요</p>
+            <h1 class="h2 mb-1">{{ page_heading|default('새 일기 작성') }}</h1>
+            <p class="text-muted">{{ page_subtitle|default('오늘의 소중한 순간을 기록해보세요') }}</p>
         </div>
 
         {% if success %}
@@ -26,7 +26,7 @@
         <!-- 일기 작성 폼 -->
         <div class="card shadow-sm">
             <div class="card-body">
-                <form id="diaryForm" method="post" action="/write" enctype="multipart/form-data" novalidate>
+                <form id="diaryForm" method="post" action="{{ form_action|default('/write') }}" enctype="multipart/form-data" novalidate>
                     <!-- 날짜 입력 -->
                     <div class="mb-3">
                         <label for="diaryDate" class="form-label">날짜</label>
@@ -77,9 +77,23 @@
                         </div>
                     </div>
 
+                    {% if existing_image_path %}
+                    <div class="mb-3">
+                        <label class="form-label">현재 사진</label>
+                        <div class="border rounded overflow-hidden bg-light" style="max-height: 220px;">
+                            <img src="/{{ existing_image_path }}" alt="" class="w-100 d-block"
+                                 style="max-height: 220px; object-fit: cover;"
+                                 onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\'p-3 text-muted small\'><i class=\'bi bi-image\'></i> 미리보기를 불러올 수 없습니다.</div>';">
+                        </div>
+                        <p class="form-text text-muted mb-0 mt-2">
+                            <i class="bi bi-arrow-repeat"></i> 아래에서 새 파일을 선택하면 기존 사진이 교체됩니다. 선택하지 않으면 현재 사진이 유지됩니다.
+                        </p>
+                    </div>
+                    {% endif %}
+
                     <!-- 이미지 업로드 (선택) -->
                     <div class="mb-4">
-                        <label for="diaryImage" class="form-label">사진 첨부 (선택사항)</label>
+                        <label for="diaryImage" class="form-label">{% if is_edit %}사진 교체 (선택){% else %}사진 첨부 (선택사항){% endif %}</label>
                         <input
                             type="file"
                             class="form-control"
@@ -104,7 +118,7 @@
                                 <i class="bi bi-eye"></i> 미리보기
                             </button>
                             <button type="submit" id="saveDiaryBtn" class="btn btn-primary" form="diaryForm">
-                                <i class="bi bi-save"></i> 저장하기
+                                <i class="bi bi-save"></i> {{ submit_label|default('저장하기') }}
                             </button>
                         </div>
                     </div>

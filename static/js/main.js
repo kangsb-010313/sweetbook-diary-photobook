@@ -57,7 +57,7 @@ function getCurrentPage() {
     
     if (path === '/' || path === '/index') {
         return 'home';
-    } else if (path === '/write') {
+    } else if (path === '/write' || /^\/diaries\/\d+\/edit$/.test(path)) {
         return 'write';
     } else if (path === '/preview') {
         return 'preview';
@@ -115,6 +115,9 @@ function initializeWritePage() {
     console.log('일기 작성 페이지 초기화 중...');
 
     if (new URLSearchParams(window.location.search).has('success')) {
+        clearDiaryDraftStorage();
+    }
+    if (/^\/diaries\/\d+\/edit$/.test(window.location.pathname)) {
         clearDiaryDraftStorage();
     }
     
@@ -269,10 +272,15 @@ function initializeLoadingStates() {
     // 버튼 클릭 시 로딩 상태 표시 (포토북·일기저장 폼 제외)
     // 일기 저장: submit 클릭 시 disabled 되면 브라우저가 폼 제출을 하지 않음 → POST /write 가 막힘
     document.querySelectorAll('.btn[type="submit"]').forEach(button => {
+        const form = button.closest('form');
+        const act = form && form.getAttribute('action');
         if (button.id === 'createPhotobookBtn' ||
             button.closest('#orderForm') ||
             button.closest('#photobookForm') ||
-            button.closest('#diaryForm')) {
+            button.closest('#diaryForm') ||
+            button.closest('#deleteDiaryConfirmForm') ||
+            (form && form.id === 'deleteDiaryConfirmForm') ||
+            (act && act.includes('/diaries/delete'))) {
             return;
         }
         
@@ -339,6 +347,10 @@ function initializeFormValidation() {
     forms.forEach(form => {
         // 일기 작성 폼: 네이티브 POST 제출 유지 (main.js에서 checkValidity 로 막지 않음)
         if (form.id === 'diaryForm') {
+            return;
+        }
+        // 일기 삭제 확인 모달: 제출이 막히지 않도록 제외
+        if (form.id === 'deleteDiaryConfirmForm') {
             return;
         }
         // 포토북 폼은 별도 처리 (hidden input 때문에 validation 문제 발생 가능)

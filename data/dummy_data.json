@@ -182,14 +182,6 @@
       "date": "2026-04-04",
       "created_at": "2026-04-04T00:34:17",
       "image_path": "static/uploads/7e6b9e303a0945218efcc32e6b965448.webp"
-    },
-    {
-      "id": 27,
-      "title": "친구들과 카페투어",
-      "content": "오늘은 친구들과 카페 투어를 했다.\r\n디저트가 맛있었다.",
-      "date": "2026-04-04",
-      "created_at": "2026-04-04T01:14:59",
-      "image_path": "static/uploads/3c07e880ae4c49b69f285e72920476e1.webp"
     }
   ],
   "photobooks": [],
